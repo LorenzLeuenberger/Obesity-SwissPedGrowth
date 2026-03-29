@@ -1,0 +1,3223 @@
+---
+title: "Data analysis prevalence and recognition of obesity in SwissPedGrowth"
+author: "Lorenz Leuenberger"
+date: "2026-03-29"
+
+---
+
+
+# Working environment and software
+## Software
+
+Load packages
+
+```{r}
+#| output: false
+#| warning: false
+
+#Libraries
+
+library(tidyverse)
+library(here)
+library(gtsummary)
+library(cowplot)
+library(ggplot2)
+library(forcats)
+library(DataExplorer)
+library(DescTools)
+library(broom)
+library(mgcv)
+library(lemon)
+library(ggh4x)
+library(summarytools)
+library(spatstat.explore)
+library(survey)
+library(srvyr)
+library(gamlss)
+  
+  
+```
+
+Write function to round 0.5 and 1.5 up consistently.
+
+```{r}
+#| warning: false
+
+# function to round correctly
+
+round2 = function(x, digits) {
+  posneg = sign(x)
+  z = abs(x)*10^digits
+  z = z + 0.5 + sqrt(.Machine$double.eps)
+  z = trunc(z)
+  z = z/10^digits
+  z*posneg
+}
+
+```
+
+
+
+Unibe colors.
+From R package [https://github.com/dcr-unibe-ch/unibecols](https://github.com/dcr-unibe-ch/unibecols)
+
+```{r}
+
+unibeRed <- function() "#e4003c"
+
+unibeRed50 <- function() "#f39b95"
+
+unibeRedS <- function() c(unibeRed(), unibeRed50())
+
+
+unibeBlack <- function() "#000000"
+
+unibeBlackS <- function() c(unibeBlack(), "#575756", "#878787", "#b3b2b2", "#dadada", "#ededed")
+
+unibeGrey <- function() "#7a7c81"
+
+
+unibeIce <- function() "#466553"
+
+unibeIceS <- function() c(unibeIce(), "#668271", "#8aa092", "#afbfb5", "#d6ded9")
+
+
+unibeSaphire <- function() "#007ea2"
+
+unibeSaphireS <- function() c(unibeSaphire(), "#5294b4", "#85adc6", "#b0c7d9", "#d8e2ec")
+
+
+unibeOcean <- function() "#203a5d"
+
+unibeOceanS <- function() c(unibeOcean(), "#4a5575", "#757792", "#a1a0b4", "#d0ced9")
+
+
+unibeViolet <- function() "#8a1e22"
+
+unibeVioletS <- function() c(unibeViolet(), "#a14540", "#b86f65", "#d19d93", "#e8cdc6")
+
+
+unibeBrown <- function() "#5a3217"
+
+unibeBrownS <- function() c(unibeBrown(), "#754e31", "#927157", "#b49b87", "#d7cac0")
+
+
+unibeMint <- function() "#36b5b6"
+
+unibeMintS <- function() c(unibeMint(), "#75c4c5", "#a0d3d4", "#c4e3e3", "#e2f1f2")
+
+
+unibePastel <- function() "#ec627d"
+
+unibePastelS <- function() c(unibePastel(), "#f08797", "#f4a9b1", "#f8c8cc", "#fce4e7")
+
+
+unibeIce <- function() "#4767af"
+
+unibeIceS <- function() c(unibeIce(), "#6e82c0", "#949fd1", "#b9bee1", "#dcdef1")
+
+
+unibeMustard <- function() "#c2b600"
+
+unibeMustardS <- function() c(unibeMustard(), "#cfc43c", "#dcd274", "#e8e1a4", "#f4f0d3")
+
+
+unibeApricot <- function() "#ee7402"
+
+unibeApricotS <- function() c(unibeApricot(), "#f3923e", "#f7af70", "#fbcba1", "#fde6d1")
+
+
+unibePalettes <- function(plot = TRUE){
+  x <- palette <- NULL
+
+  cols <- c("unibeRedS", "unibeBlackS", "unibeIceS", "unibeSaphireS", "unibeOceanS",
+    "unibeVioletS", "unibeBrownS", "unibeMintS", "unibePastelS", "unibeIceS",
+    "unibeMustardS", "unibeApricotS")
+
+  dat <- do.call(rbind, lapply(cols,
+    function(name){
+      fn <- get(name)
+      # print(name)
+      values <- fn()
+      data.frame(palette = name,
+                 x = 1:length(values),
+                 cols = values)
+    }))
+
+  dat$palette <- factor(dat$palette, cols)
+
+  if(plot){
+
+    pals <- dat
+    pals$x2 <- pals$x + 1
+    pals$y <- as.numeric(factor(pals$palette, rev(unique(pals$palette)))) - .5
+    pals$y2 <- as.numeric(factor(pals$palette, rev(unique(pals$palette)))) + .5
+
+    oldpar <- par(mai = c(.5, 1.5, .5, .5))
+    on.exit(par(oldpar))
+
+    plot(1,1,type = "n",
+         xlim = c(min(pals$x, pals$x2), max(pals$x, pals$x2)),
+         ylim = c(min(pals$y, pals$y2), max(pals$y, pals$y2)),
+         xaxt = "n", yaxt = "n", xlab = "", ylab = "", bty = "n")
+    with(pals, rect(x, y, x2, y2, col = cols, border = NA))
+    axis(at = as.numeric(unique(factor(pals$palette, rev(unique(pals$palette))))),
+         labels = unique(factor(pals$palette, rev(unique(pals$palette)))),
+         side = 2, las = 2)
+    axis(side = 1, at = unique(pals$x) + .5, labels = unique(pals$x))
+
+  } else {
+    dat
+  }
+
+}
+
+
+unibeScales <- function() c("unibeRedS", "unibeBlackS", "unibeIceS", "unibeSaphireS", "unibeOceanS",
+                            "unibeVioletS", "unibeBrownS", "unibeMintS", "unibePastelS", "unibeIceS",
+                            "unibeMustardS", "unibeApricotS")
+
+```
+
+
+
+
+# Data preparation
+## Import data
+
+```{r}
+#| warning: false
+#| output: false
+
+# import SwissPedGrowth data
+load(file = here("data", "raw", "SwissPedGrowth_included", "data_participant.RData"))
+data_participant <- data_participant_included
+load(here("data", "raw", "SwissPedGrowth_included", "data_diagnoses.RData"))
+data_diagnoses <- data_diagnoses_included
+
+load(here("data", "raw", "SwissPedGrowth_included", "data_bmi.RData"))
+data_bmi <- data_bmi_included
+
+
+rm(data_participant_included, data_diagnoses_included, data_bmi_included)
+
+# import interpolated LMS-values from braegger
+interpolated_braegger_bmi <- read_csv(here("data","raw","Interpolated-growth-references","interpolated_braegger_bmi.csv"))
+
+# import interpolated LMS-values from eiholzer
+interpolated_eiholzer_bmi <- read_csv(here("data","raw","Interpolated-growth-references","interpolated_eiholzer_bmi_25.csv"))
+
+# import interpolated LMS-values from IOTF
+interpolated_iotf_bmi <- read_csv(here("data","raw","Interpolated-growth-references","interpolated_iotf_bmi.csv"))
+
+
+# genpop
+
+data_general_population <- read_csv(here("data","raw","general_population.csv"))
+
+data_general_population_detailed_nationality <- read_csv(here("data","raw","general_population_detailed_nationality.csv"))
+
+```
+
+
+
+## Inclusion criteria
+
+Inclusion criteria of SwissPedGrowth (already applied)
+
+Inclusion criteria for this analysis:
+•	Children who had a plausible BMI measurement between 0 to <18 years.
+
+Exclude:
+•	AND excluded implausible BMI measurements.
+•	AND excluded children with missing information on age, sex, nationality group, swiss-sep
+
+
+```{r}
+cat("Number participants in SwissPedGrowth\n")
+data_participant |> nrow()
+cat("Number of measurements in SwissPedGrowth")
+data_bmi |> nrow()
+
+
+```
+Excluded participants
+
+
+```{r}
+
+data_bmi <- data_bmi |> 
+  mutate(include_analysis_bmi = case_when((age_years_bmi < 2) | (age_years_bmi >= 18) ~ "bmi before 2 or after 18",
+                                      combined_result_bmi == "Missing Weight - Recording" | combined_result_bmi == "Missing Weight - Sex" | combined_result_bmi == "Missing Weight - Age" ~ "Invalid information",
+                                      combined_result_bmi == "Missing Height - Recording" | combined_result_bmi == "Missing Height - Sex" | combined_result_bmi == "Missing Height - Age" ~ "Invalid information",
+                                      combined_result_bmi == "Exclude Weight - Longitudinal-Outlier" | combined_result_bmi == "Exclude Weight - Single-Outlier" | combined_result_weight == "Exclude Weight - Z-Score" ~ "Outlier",
+                                      combined_result_bmi == "Exclude Height - Longitudinal-Outlier" | combined_result_bmi == "Exclude Height - Single-Outlier" | combined_result_bmi == "Exclude Height - Z-Score" ~ "Outlier",
+                                      combined_result_bmi == "Exclude BMI - Z-Score" ~ "Outlier",
+                                      combined_result_bmi == "Duplicate Weight - Carried-Forward" | combined_result_bmi == "Duplicate Weight - Same-Day" ~ "Duplicate",
+                                      combined_result_bmi == "Duplicate Height - Carried-Forward" | combined_result_bmi == "Duplicate Height - Same-Day" ~ "Duplicate",
+                                      is.na(sex) ~ "No sex",
+                                      is.na(age_days_bmi) ~ "No age at bmi",
+                                      TRUE ~ "Include")) |> 
+  mutate(include_analysis_bmi = factor(include_analysis_bmi,
+                                   levels = c("Include", "No sex", "No age at bmi", "bmi before 2 or after 18", "Duplicate", "Outlier", "Invalid information")))
+
+data_bmi |> select(include_analysis_bmi) |>  tbl_summary()
+
+
+```
+
+
+```{r}
+data_participant <- data_participant |> 
+  left_join(data_bmi |>
+              filter(include_analysis_bmi == "Include") |> 
+              count(participant_id) |> rename("number_bmi_measurements" = "n"),
+            by = "participant_id") |> 
+  mutate(bmi_measurement = case_when(number_bmi_measurements >= 1 ~ "yes",
+                                        is.na(number_bmi_measurements) ~ "no"))
+
+data_participant <- data_participant |> 
+  mutate(nationality_group = case_when(nationality == "Switzerland" ~ "Swiss",
+                                       continent_nationality == "Europe" ~ subcontinent_nationality,
+                                       TRUE ~ continent_nationality),
+         nationality_group_middle = factor(case_when(nationality == "Switzerland" ~ "Swiss",
+                                                     nationality == "Turkey" ~ "Southern/Eastern Europe",
+                                              subcontinent_nationality == "Northern Europe" | subcontinent_nationality == "Western Europe" ~ "Northern/Western Europe",
+                                              subcontinent_nationality == "Southern Europe" | subcontinent_nationality == "Eastern Europe" ~ "Southern/Eastern Europe",
+                                              is.na(nationality) ~ NA,
+                                              TRUE ~ "Other"),
+                                           levels = c("Swiss", "Northern/Western Europe", "Southern/Eastern Europe", "Other")),
+         nationality_group_short = case_when(nationality == "Switzerland" ~ "Swiss",
+                                             continent_nationality == "Europe" ~ "European",
+                                             is.na(continent_nationality)==FALSE ~ "Non-European",
+                                             TRUE ~ NA))
+
+data_participant <- data_participant |> 
+  mutate(include_analysis_participant = case_when(bmi_measurement == "no" ~ "Exclude - no BMI",
+                                      is.na(sex) ~ "Exclude - no sex",
+                                      is.na(birth_date) ~ "Exclude - no birth date",
+                                      is.na(nationality_group_middle) ~ "Exclude - no nationality",
+                                      is.na(swiss_sep_3) ~ "Exclude - no Swiss-SEP",
+                                      TRUE ~ "Include"))
+
+data_participant |> 
+  select(include_analysis_participant) |> 
+  tbl_summary()
+
+
+
+
+
+data_bmi <- data_bmi |> 
+  left_join(data_participant |> select(include_analysis_participant, participant_id), by = "participant_id")
+
+
+data_bmi <- data_bmi |> 
+  mutate(include_analysis_bmi = case_when(include_analysis_bmi == "Include" & include_analysis_participant == "Exclude - no nationality" ~ "Exclude - no nationality",
+                                          include_analysis_bmi == "Include" & include_analysis_participant == "Exclude - no Swiss-SEP" ~ "Exclude - no Swiss-SEP",
+                                          TRUE ~ include_analysis_bmi))
+
+data_bmi |> select(include_analysis_bmi) |>  tbl_summary()
+```
+
+
+```{r}
+
+data_participant <- data_participant |> 
+  filter(include_analysis_participant == "Include")
+
+data_bmi <- data_bmi |> 
+  filter(include_analysis_bmi == "Include")
+
+
+```
+
+
+
+
+## Coding variables
+
+### Nationality
+
+```{r}
+
+data_participant <- data_participant |> 
+  mutate(nationality_group = case_when(nationality == "Switzerland" ~ "Swiss",
+                                       continent_nationality == "Europe" ~ subcontinent_nationality,
+                                       TRUE ~ continent_nationality),
+         nationality_group_middle = factor(case_when(nationality == "Switzerland" ~ "Swiss",
+                                                     nationality == "Turkey" ~ "Southern/Eastern Europe",
+                                              subcontinent_nationality == "Northern Europe" | subcontinent_nationality == "Western Europe" ~ "Northern/Western Europe",
+                                              subcontinent_nationality == "Southern Europe" | subcontinent_nationality == "Eastern Europe" ~ "Southern/Eastern Europe",
+                                              is.na(nationality) ~ NA,
+                                              TRUE ~ "Other"),
+                                           levels = c("Swiss", "Northern/Western Europe", "Southern/Eastern Europe", "Other")),
+         nationality_group_short = case_when(nationality == "Switzerland" ~ "Swiss",
+                                             continent_nationality == "Europe" ~ "European",
+                                             is.na(continent_nationality)==FALSE ~ "Non-European",
+                                             TRUE ~ NA),
+         nationality_group_detailed = factor(case_when(nationality == "Switzerland" ~ "Swiss",
+                                                     nationality == "Turkey" ~ "Southern Europe",
+                                                     subcontinent_nationality == "Northern Europe" ~ "Northern Europe",
+                                                     subcontinent_nationality == "Western Europe" ~ "Western Europe",
+                                              subcontinent_nationality == "Southern Europe" ~ "Southern Europe",
+                                              subcontinent_nationality == "Eastern Europe" ~ "Eastern Europe",
+                                              is.na(nationality) ~ NA,
+                                              TRUE ~ "Other"),
+                                             levels = c("Swiss", "Northern Europe", "Western Europe", "Southern Europe", "Eastern Europe", "Other")))
+
+data_participant |> select(nationality_group, nationality_group_middle, nationality_group_short) |> tbl_summary()
+
+
+data_bmi <- data_bmi |> 
+  left_join(data_participant |> select(participant_id, nationality_group, nationality_group_middle, nationality_group_short, nationality_group_detailed), by = "participant_id")
+
+```
+
+
+### Swiss-SEP
+
+```{r}
+
+data_participant <- data_participant |> 
+  mutate(swiss_sep_3_decile = factor(case_when(swiss_sep_3 < 50.09 ~ "1",
+                                             swiss_sep_3 < 54.74 ~ "2",
+                                             swiss_sep_3 < 58.06 ~ "3",
+                                             swiss_sep_3 < 60.90 ~ "4",
+                                             swiss_sep_3 < 63.56 ~ "5",
+                                             swiss_sep_3 < 66.28 ~ "6",
+                                             swiss_sep_3 < 69.21 ~ "7",
+                                             swiss_sep_3 < 72.65 ~ "8",
+                                             swiss_sep_3 < 77.18 ~ "9",
+                                             swiss_sep_3 >= 77.18 ~ "10")),
+         swiss_sep_3_quintile = factor(case_when(swiss_sep_3_decile == "1" | swiss_sep_3_decile == "2" ~ "1",
+                                                 swiss_sep_3_decile == "3" | swiss_sep_3_decile == "4" ~ "2",
+                                                 swiss_sep_3_decile == "5" | swiss_sep_3_decile == "6" ~ "3",
+                                                 swiss_sep_3_decile == "7" | swiss_sep_3_decile == "8" ~ "4",
+                                                 swiss_sep_3_decile == "9" | swiss_sep_3_decile == "10" ~ "5")))
+
+            
+data_bmi <- data_bmi |> 
+  left_join(data_participant |> select(participant_id, swiss_sep_3, swiss_sep_3_decile, swiss_sep_3_quintile), by = "participant_id")
+
+```
+
+
+### Hospital
+
+```{r}
+
+data_participant <- data_participant |> 
+  mutate(hospital = factor(case_when(hospital == "CHUV" ~ "Lausanne",
+                              hospital == "HUG" ~ "Geneva",
+                              hospital == "Insel Gruppe AG" ~ "Bern",
+                              hospital == "Luzerner Kantonsspital AG" ~ "Luzern",
+                              hospital == "Universitäts-Kinderspital Zürich - Eleonorenstiftung" ~ "Zürich",
+                              hospital == "University Children Hospital Basel" ~ "Basel"),
+                           levels = c("Basel", "Bern", "Geneva", "Lausanne", "Luzern", "Zürich")))
+
+
+data_bmi <- data_bmi |> 
+  mutate(hospital = factor(case_when(hospital == "CHUV" ~ "Lausanne",
+                              hospital == "HUG" ~ "Geneva",
+                              hospital == "Insel Gruppe AG" ~ "Bern",
+                              hospital == "Luzerner Kantonsspital AG" ~ "Luzern",
+                              hospital == "Universitäts-Kinderspital Zürich - Eleonorenstiftung" ~ "Zürich",
+                              hospital == "University Children Hospital Basel" ~ "Basel"),
+                           levels = c("Basel", "Bern", "Geneva", "Lausanne", "Luzern", "Zürich")))
+
+```
+
+
+### Age group
+
+```{r}
+
+data_bmi <- data_bmi |> 
+  mutate(age_group_bmi = case_when(age_years_bmi < 6 ~ "Preschool age: 2–5",
+                               age_years_bmi < 12 ~ "School age: 6–11",
+                               age_years_bmi >= 12 ~ "Adolescence: 12–17")) |> 
+  mutate(age_group_bmi = factor(age_group_bmi, levels = c("Preschool age: 2–5", "School age: 6–11", "Adolescence: 12–17")))
+
+
+data_bmi <- data_bmi |> 
+  mutate(age_cat = factor(floor(age_years_bmi)))
+
+
+```
+
+
+### Diagnoses for obesity
+
+Define diagnostic codes for obesity E66 (ICD-10)
+
+
+```{r}
+
+icd_obesity <- c(
+  "E66")
+
+data_diagnoses <- data_diagnoses |> 
+  mutate(diagnosis_obesity = factor(case_when(is.na(diagnosis_icd10_code) & is.na(diagnosis_orpha_code_associated_icd) ~ "Unkown code",
+                                         grepl(icd_obesity, diagnosis_icd10_code) ~ "Obesity",
+                                         TRUE ~ "Not obesity"),
+                                      levels = c("Obesity", "Not obesity", "Unkown code")))
+
+
+data_diagnoses |> select(diagnosis_obesity) |> 
+  tbl_summary()
+
+```
+
+Add diagnoses details
+
+```{r}
+
+data_bmi <- data_bmi |> 
+  left_join(data_diagnoses |> filter(diagnosis_obesity != "Unkown code") |> select(participant_id, case_id, diagnosis_obesity, age_days_diagnosis), by = c("participant_id", "case_id")) |> 
+  mutate(diagnosis_obesity =factor(case_when(diagnosis_obesity == "Obesity" ~ "Obesity",
+                                             diagnosis_obesity == "Not obesity" ~ "Not obesity",
+                                             TRUE ~ "Unavailable"),
+                                   levels = c("Obesity", "Not obesity", "Unavailable"))) |> 
+  group_by(weight_id) |> 
+  arrange(diagnosis_obesity) |> 
+  slice(1) |> 
+  ungroup()
+
+data_bmi |> select(diagnosis_obesity) |> tbl_summary()
+
+```
+
+
+
+```{r}
+
+
+data_participant <- data_participant |> 
+  left_join(data_bmi |>
+              filter(diagnosis_obesity == "Obesity") |> 
+              count(participant_id) |> rename("number_bmi_measurements_diagnosis_obesity" = "n"),
+            by = "participant_id") |> 
+  mutate(bmi_measurement_diagnosis_obesity = case_when(number_bmi_measurements_diagnosis_obesity >= 1 ~ "yes",
+                                        is.na(number_bmi_measurements_diagnosis_obesity) ~ "no")) |> 
+  left_join(data_bmi |>
+              filter(diagnosis_obesity == "Not obesity") |> 
+              count(participant_id) |> rename("number_bmi_measurements_diagnosis_not_obesity" = "n"),
+            by = "participant_id") |> 
+  mutate(bmi_measurement_diagnosis_not_obesity = case_when(number_bmi_measurements_diagnosis_not_obesity >= 1 ~ "yes",
+                                        is.na(number_bmi_measurements_diagnosis_not_obesity) ~ "no")) |> 
+  left_join(data_bmi |>
+              filter(diagnosis_obesity == "Unavailable") |> 
+              count(participant_id) |> rename("number_bmi_measurements_diagnosis_unavailable" = "n"),
+            by = "participant_id") |> 
+  mutate(bmi_measurement_diagnosis_unavailable = case_when(number_bmi_measurements_diagnosis_unavailable >= 1 ~ "yes",
+                                        is.na(number_bmi_measurements_diagnosis_unavailable) ~ "no"))
+
+
+data_bmi <- data_bmi |> 
+  left_join(data_participant |> select(bmi_measurement_diagnosis_obesity, bmi_measurement_diagnosis_not_obesity, bmi_measurement_diagnosis_unavailable, participant_id), by = "participant_id")
+
+
+```
+
+
+
+### Number of BMI measurements
+
+```{r}
+
+data_participant <- data_participant |> 
+  left_join(data_bmi |>
+              count(participant_id) |> rename("number_bmi_measurements_total" = "n"),
+            by = "participant_id") |> 
+  mutate(bmi_measurement_total = case_when(number_bmi_measurements_total == 1 ~ "One",
+                                           number_bmi_measurements_total == 2 ~ "Two",
+                                           number_bmi_measurements_total >2 ~ "Three or more")) |> 
+  left_join(data_bmi |>
+              filter(age_group_bmi == "Preschool age: 2–5") |> 
+              count(participant_id) |> rename("number_bmi_measurements_preschool" = "n"),
+            by = "participant_id") |> 
+  mutate(bmi_measurement_preschool = case_when(number_bmi_measurements_preschool >= 1 ~ "yes",
+                                        is.na(number_bmi_measurements_preschool) ~ "no")) |> 
+  left_join(data_bmi |>
+              filter(age_group_bmi == "School age: 6–11") |> 
+              count(participant_id) |> rename("number_bmi_measurements_school" = "n"),
+            by = "participant_id") |> 
+  mutate(bmi_measurement_school = case_when(number_bmi_measurements_school >= 1 ~ "yes",
+                                        is.na(number_bmi_measurements_school) ~ "no")) |> 
+  left_join(data_bmi |>
+              filter(age_group_bmi == "Adolescence: 12–17") |> 
+              count(participant_id) |> rename("number_bmi_measurements_adolescence" = "n"),
+            by = "participant_id") |> 
+  mutate(bmi_measurement_adolescence = case_when(number_bmi_measurements_adolescence >= 1 ~ "yes",
+                                        is.na(number_bmi_measurements_adolescence) ~ "no"))
+
+
+data_bmi <- data_bmi |> 
+  left_join(data_participant |> select(bmi_measurement_total, bmi_measurement_preschool, bmi_measurement_school, bmi_measurement_adolescence, participant_id), by = "participant_id")
+
+```
+
+```{r}
+
+data_bmi <- data_bmi |> 
+  group_by(participant_id) |> 
+  mutate(number_bmi_measurements_total = n()) |>
+  ungroup() |> 
+  mutate(number_participants_total = n_distinct(participant_id))
+
+
+data_bmi <- data_bmi |> 
+  group_by(participant_id, age_group_bmi) |> 
+  mutate(number_bmi_measurements_age_group = n()) |>
+  ungroup() |> 
+  group_by(age_group_bmi) |> 
+  mutate(number_participants_age_group = n_distinct(participant_id)) |> 
+  ungroup()
+
+
+data_bmi <- data_bmi |> 
+  group_by(participant_id, age_cat) |> 
+  mutate(number_bmi_measurements_age_cat = n()) |>
+  ungroup() |> 
+  group_by(age_cat) |> 
+  mutate(number_participants_age_cat = n_distinct(participant_id)) |> 
+  ungroup()
+
+```
+
+
+
+## Calculate z-scores
+
+#### Check interpolated growth references
+
+BMI
+
+```{r}
+
+interpolated_braegger_bmi |> 
+  mutate(reference = "Braegger") |> 
+  bind_rows(interpolated_eiholzer_bmi |> mutate(reference = "Eiholzer")) |> 
+  bind_rows(interpolated_iotf_bmi |> mutate(reference = "IOTF")) |> 
+  ggplot(aes(x = age_days, y = M, color = reference)) +
+  geom_point(size = 0.2) +
+  facet_wrap(~sex)
+
+interpolated_braegger_bmi |> 
+  mutate(reference = "Braegger") |> 
+  bind_rows(interpolated_eiholzer_bmi |> mutate(reference = "Eiholzer")) |> 
+  bind_rows(interpolated_iotf_bmi |> mutate(reference = "IOTF")) |> 
+  ggplot(aes(x = age_days, y = S, color = reference)) +
+  geom_point(size = 0.2) +
+  facet_wrap(~sex)
+
+
+interpolated_braegger_bmi |> 
+  mutate(reference = "Braegger") |> 
+  bind_rows(interpolated_eiholzer_bmi |> mutate(reference = "Eiholzer")) |> 
+  bind_rows(interpolated_iotf_bmi |> mutate(reference = "IOTF")) |> 
+  ggplot(aes(x = age_days, y = L, color = reference)) +
+  geom_line() +
+  facet_wrap(~sex)
+
+
+```
+
+I use tables of interpolated LMS-values to calculate z-scores of height, weight and BMI.
+
+I define a function to calculate z-scores. I use the correction method of the WHO for z-scores <-3 and >+3, see [here](https://cdn.who.int/media/docs/default-source/child-growth/growth-reference-5-19-years/computation.pdf).
+
+```{r}
+#| output: false
+#| warning: false
+
+# function to calculate z-scores -----
+
+z_score_calc = function(L,M,S,parameter){
+  if(is.na(L)|is.na(M)|is.na(S)|is.na(parameter)){
+    return(NA)
+  }
+  z_score = ((parameter/M)^L-1)/(S*L)
+  return(z_score)
+}
+
+# function to calculate corrected z-scores as described by the WHO. -----
+
+z_score_calc_corr = function(L,M,S,parameter){
+  if(is.na(L)|is.na(M)|is.na(S)|is.na(parameter)){
+    return(NA)
+  }
+  z_score = ((parameter/M)^L-1)/(S*L)
+  if (z_score > 3){
+    SD3pos = M*(1+S*L*3)^(1/L)
+    SD2pos = M*(1+S*L*2)^(1/L)
+    SD23pos = SD3pos - SD2pos
+    z_score = 3+((parameter-SD3pos)/SD23pos)
+    return(z_score)
+  } else if (z_score < -3){
+    SD3neg = M*(1+S*L*(-3))^(1/L)
+    SD2neg = M*(1+S*L*(-2))^(1/L)
+    SD23neg = SD2neg - SD3neg
+    z_score = -3+((parameter-SD3neg)/SD23neg)
+    return(z_score)
+  } else{
+    return(z_score)
+  }
+}
+```
+
+
+#### Braegger references
+
+BMI
+
+```{r}
+#| output: false
+#| warning: false
+
+# add L,M,S values of bmi reference to each individual
+data_bmi <- data_bmi |> 
+  mutate(age_days_z = round(age_days_bmi)) |> 
+  left_join(y=interpolated_braegger_bmi, by = c('age_days_z' = "age_days",'sex'))
+
+
+# calculate bmi z scores with correction
+data_bmi <- data_bmi %>%
+  rowwise() %>% 
+  mutate(z_bmi_braegger=z_score_calc_corr(L,M,S,bmi)) %>% 
+  mutate(diff_bmi_braegger = bmi - M) %>% 
+  ungroup()
+
+# delete LMS values
+exclude_col = c("L","M","S")
+
+data_bmi <- data_bmi %>% 
+  dplyr::select(-exclude_col)
+
+```
+
+#### Eiholzer references
+
+BMI
+
+```{r}
+#| output: false
+#| warning: false
+
+# add L,M,S values of bmi reference to each individual
+data_bmi <- data_bmi |> 
+  mutate(age_days_z = round(age_days_bmi)) |> 
+  left_join(y=interpolated_eiholzer_bmi, by = c('age_days_z' = "age_days",'sex'))
+
+
+# calculate bmi z scores with correction
+data_bmi <- data_bmi %>%
+  rowwise() %>% 
+  mutate(z_bmi_eiholzer=z_score_calc_corr(L,M,S,bmi)) %>% 
+  mutate(diff_bmi_eiholzer = bmi - M) %>% 
+  ungroup()
+
+# delete LMS values
+exclude_col = c("L","M","S")
+
+data_bmi <- data_bmi %>% 
+  dplyr::select(-exclude_col)
+
+```
+
+#### IOTF
+
+BMI
+
+```{r}
+#| output: false
+#| warning: false
+
+# add L,M,S values of bmi reference to each individual
+data_bmi <- data_bmi |> 
+  mutate(age_days_z = round(age_days_bmi)) |> 
+  left_join(y=interpolated_iotf_bmi, by = c('age_days_z' = "age_days",'sex'))
+
+
+# calculate bmi z scores with correction
+data_bmi <- data_bmi %>%
+  rowwise() %>% 
+  mutate(z_bmi_iotf=z_score_calc_corr(L,M,S,bmi)) %>% 
+  mutate(diff_bmi_iotf = bmi - M) %>% 
+  ungroup()
+
+# delete LMS values
+exclude_col = c("L","M","S")
+
+data_bmi <- data_bmi %>% 
+  dplyr::select(-exclude_col)
+
+```
+
+
+## Obesity
+
+```{r}
+#| output: false
+#| warning: false
+
+
+# Eiholzer, I calculate the exact cut-offs with the LMS-values provided in the publication
+eiholzer_severe_obesity_cut_off_bmi_boys <- z_score_calc(-1.5861,21.970,0.1444,35)
+eiholzer_obesity_cut_off_bmi_boys <- z_score_calc(-1.5861,21.970,0.1444,30)
+eiholzer_overweight_cut_off_bmi_boys <- z_score_calc(-1.5861,21.970,0.1444,25)
+eiholzer_Thinness_grade_I_cut_off_bmi_boys <- z_score_calc(-1.5861,21.970,0.1444,18.5)
+eiholzer_Thinness_grade_II_cut_off_bmi_boys <- z_score_calc(-1.5861,21.970,0.1444,17)
+eiholzer_Thinness_grade_III_cut_off_bmi_boys <- z_score_calc(-1.5861,21.970,0.1444,16)
+
+eiholzer_severe_obesity_cut_off_bmi_girls <- z_score_calc(-1.7200,21.422,0.1347,35)
+eiholzer_obesity_cut_off_bmi_girls <- z_score_calc(-1.7200,21.422,0.1347,30)
+eiholzer_overweight_cut_off_bmi_girls <- z_score_calc(-1.7200,21.422,0.1347,25)
+eiholzer_Thinness_grade_I_cut_off_bmi_girls <- z_score_calc(-1.7200,21.422,0.1347,18.5)
+eiholzer_Thinness_grade_II_cut_off_bmi_girls <- z_score_calc(-1.7200,21.422,0.1347,17)
+eiholzer_Thinness_grade_III_cut_off_bmi_girls <- z_score_calc(-1.7200,21.422,0.1347,16)
+
+
+# IOTF, I calculate the exact cut-offs with the LMS-values provided in the publication
+iotf_severe_obesity_cut_off_bmi_boys <- z_score_calc(-1.487,20.759,0.12395,35)
+iotf_obesity_cut_off_bmi_boys <- z_score_calc(-1.487,20.759,0.12395,30)
+iotf_overweight_cut_off_bmi_boys <- z_score_calc(-1.487,20.759,0.12395,25)
+iotf_Thinness_grade_I_cut_off_bmi_boys <- z_score_calc(-1.487,20.759,0.12395,18.5)
+iotf_Thinness_grade_II_cut_off_bmi_boys <- z_score_calc(-1.487,20.759,0.12395,17)
+iotf_Thinness_grade_III_cut_off_bmi_boys <- z_score_calc(-1.487,20.759,0.12395,16)
+
+iotf_severe_obesity_cut_off_bmi_girls <- z_score_calc(-1.423,20.792,0.13033,35)
+iotf_obesity_cut_off_bmi_girls <- z_score_calc(-1.423,20.792,0.13033,30)
+iotf_overweight_cut_off_bmi_girls <- z_score_calc(-1.423,20.792,0.13033,25)
+iotf_Thinness_grade_I_cut_off_bmi_girls <- z_score_calc(-1.423,20.792,0.13033,18.5)
+iotf_Thinness_grade_II_cut_off_bmi_girls <- z_score_calc(-1.423,20.792,0.13033,17)
+iotf_Thinness_grade_III_cut_off_bmi_girls <- z_score_calc(-1.423,20.792,0.13033,16)
+
+# Braegger, I use the cut-offs for overweight (90th perc.), obesity (97th perc.), and severe obestiy (99.5th perc.) mentioned in the publication.
+# I will use the same cut-offs inverted for thinness I (10th perc.), thinness II (3rd perc.) , and thinness III (0.5th perc.)
+
+braegger_severe_obesity_cut_off_bmi <- qnorm(0.995)
+braegger_obesity_cut_off_bmi <- qnorm(0.97)
+braegger_overweight_cut_off_bmi <- qnorm(0.90)
+braegger_Thinness_grade_I_cut_off_bmi <- qnorm(0.1)
+braegger_Thinness_grade_II_cut_off_bmi <- qnorm(0.03)
+braegger_Thinness_grade_III_cut_off_bmi <- qnorm(0.005)
+
+```
+
+Now I can define the BMI category (overweight, obesity, and thinness) for every individual and the different growth references.
+I use the mean z-score for individuals with multiple measurements.
+
+```{r}
+#| output: false
+#| warning: false
+
+data_participant <- data_participant |> 
+  left_join(data_bmi |> group_by(participant_id) |> summarise(mean_z_bmi_braegger = mean(z_bmi_braegger, na.rm = TRUE),
+                                                              mean_z_bmi_eiholzer = mean(z_bmi_eiholzer, na.rm = TRUE),
+                                                              mean_z_bmi_iotf = mean(z_bmi_iotf, na.rm = TRUE)) |> 
+              select(participant_id, mean_z_bmi_braegger, mean_z_bmi_eiholzer, mean_z_bmi_iotf), by = "participant_id")
+
+data_participant |> filter(is.na(mean_z_bmi_braegger)==FALSE) |> nrow()
+
+data_participant <- data_participant %>%
+  mutate(bmi_cat_eiholzer = factor(case_when(sex == "Male" & mean_z_bmi_eiholzer >= eiholzer_severe_obesity_cut_off_bmi_boys ~ "Severe obesity",
+                                      sex == "Male" & mean_z_bmi_eiholzer >= eiholzer_obesity_cut_off_bmi_boys ~ "Obesity",
+                                      sex == "Male" & mean_z_bmi_eiholzer >= eiholzer_overweight_cut_off_bmi_boys ~ "Overweight",
+                                      sex == "Male" & mean_z_bmi_eiholzer >= eiholzer_Thinness_grade_I_cut_off_bmi_boys ~ "Normal",
+                                      sex == "Male" & mean_z_bmi_eiholzer >= eiholzer_Thinness_grade_II_cut_off_bmi_boys ~ "Thinness I",
+                                      sex == "Male" & mean_z_bmi_eiholzer >= eiholzer_Thinness_grade_III_cut_off_bmi_boys ~ "Thinness II",
+                                      sex == "Male" & mean_z_bmi_eiholzer < eiholzer_Thinness_grade_III_cut_off_bmi_boys ~ "Thinness III",
+                                      sex == "Female" & mean_z_bmi_eiholzer >= eiholzer_severe_obesity_cut_off_bmi_girls ~ "Severe obesity",
+                                      sex == "Female" & mean_z_bmi_eiholzer >= eiholzer_obesity_cut_off_bmi_girls ~ "Obesity",
+                                      sex == "Female" & mean_z_bmi_eiholzer >= eiholzer_overweight_cut_off_bmi_girls ~ "Overweight",
+                                      sex == "Female" & mean_z_bmi_eiholzer >= eiholzer_Thinness_grade_I_cut_off_bmi_girls ~ "Normal",
+                                      sex == "Female" & mean_z_bmi_eiholzer >= eiholzer_Thinness_grade_II_cut_off_bmi_girls ~ "Thinness I",
+                                      sex == "Female" & mean_z_bmi_eiholzer >= eiholzer_Thinness_grade_III_cut_off_bmi_girls ~ "Thinness II",
+                                      sex == "Female" & mean_z_bmi_eiholzer < eiholzer_Thinness_grade_III_cut_off_bmi_girls ~ "Thinness III")),
+         bmi_cat_iotf = factor(case_when(sex == "Male" & mean_z_bmi_iotf >= iotf_severe_obesity_cut_off_bmi_boys ~ "Severe obesity",
+                                      sex == "Male" & mean_z_bmi_iotf >= iotf_obesity_cut_off_bmi_boys ~ "Obesity",
+                                      sex == "Male" & mean_z_bmi_iotf >= iotf_overweight_cut_off_bmi_boys ~ "Overweight",
+                                      sex == "Male" & mean_z_bmi_iotf >= iotf_Thinness_grade_I_cut_off_bmi_boys ~ "Normal",
+                                      sex == "Male" & mean_z_bmi_iotf >= iotf_Thinness_grade_II_cut_off_bmi_boys ~ "Thinness I",
+                                      sex == "Male" & mean_z_bmi_iotf >= iotf_Thinness_grade_III_cut_off_bmi_boys ~ "Thinness II",
+                                      sex == "Male" & mean_z_bmi_iotf < iotf_Thinness_grade_III_cut_off_bmi_boys ~ "Thinness III",
+                                      sex == "Female" & mean_z_bmi_iotf >= iotf_severe_obesity_cut_off_bmi_girls ~ "Severe obesity",
+                                      sex == "Female" & mean_z_bmi_iotf >= iotf_obesity_cut_off_bmi_girls ~ "Obesity",
+                                      sex == "Female" & mean_z_bmi_iotf >= iotf_overweight_cut_off_bmi_girls ~ "Overweight",
+                                      sex == "Female" & mean_z_bmi_iotf >= iotf_Thinness_grade_I_cut_off_bmi_girls ~ "Normal",
+                                      sex == "Female" & mean_z_bmi_iotf >= iotf_Thinness_grade_II_cut_off_bmi_girls ~ "Thinness I",
+                                      sex == "Female" & mean_z_bmi_iotf >= iotf_Thinness_grade_III_cut_off_bmi_girls ~ "Thinness II",
+                                      sex == "Female" & mean_z_bmi_iotf < iotf_Thinness_grade_III_cut_off_bmi_girls ~ "Thinness III")),
+         bmi_cat_braegger = factor(case_when(mean_z_bmi_braegger > braegger_severe_obesity_cut_off_bmi ~ "Severe obesity",
+                                      mean_z_bmi_braegger > braegger_obesity_cut_off_bmi ~ "Obesity",
+                                      mean_z_bmi_braegger > braegger_overweight_cut_off_bmi ~ "Overweight",
+                                      mean_z_bmi_braegger >= braegger_Thinness_grade_I_cut_off_bmi ~ "Normal",
+                                      mean_z_bmi_braegger >= braegger_Thinness_grade_II_cut_off_bmi ~ "Thinness I",
+                                      mean_z_bmi_braegger >= braegger_Thinness_grade_III_cut_off_bmi ~ "Thinness II",
+                                      mean_z_bmi_braegger < braegger_Thinness_grade_III_cut_off_bmi ~ "Thinness III")))
+
+
+data_bmi <- data_bmi |> 
+  mutate(bmi_cat_eiholzer = factor(case_when(sex == "m" & z_bmi_eiholzer >= eiholzer_severe_obesity_cut_off_bmi_boys ~ "Severe obesity",
+                                      sex == "m" & z_bmi_eiholzer >= eiholzer_obesity_cut_off_bmi_boys ~ "Obesity",
+                                      sex == "m" & z_bmi_eiholzer >= eiholzer_overweight_cut_off_bmi_boys ~ "Overweight",
+                                      sex == "m" & z_bmi_eiholzer >= eiholzer_Thinness_grade_I_cut_off_bmi_boys ~ "Normal",
+                                      sex == "m" & z_bmi_eiholzer >= eiholzer_Thinness_grade_II_cut_off_bmi_boys ~ "Thinness I",
+                                      sex == "m" & z_bmi_eiholzer >= eiholzer_Thinness_grade_III_cut_off_bmi_boys ~ "Thinness II",
+                                      sex == "m" & z_bmi_eiholzer < eiholzer_Thinness_grade_III_cut_off_bmi_boys ~ "Thinness III",
+                                      sex == "f" & z_bmi_eiholzer >= eiholzer_severe_obesity_cut_off_bmi_girls ~ "Severe obesity",
+                                      sex == "f" & z_bmi_eiholzer >= eiholzer_obesity_cut_off_bmi_girls ~ "Obesity",
+                                      sex == "f" & z_bmi_eiholzer >= eiholzer_overweight_cut_off_bmi_girls ~ "Overweight",
+                                      sex == "f" & z_bmi_eiholzer >= eiholzer_Thinness_grade_I_cut_off_bmi_girls ~ "Normal",
+                                      sex == "f" & z_bmi_eiholzer >= eiholzer_Thinness_grade_II_cut_off_bmi_girls ~ "Thinness I",
+                                      sex == "f" & z_bmi_eiholzer >= eiholzer_Thinness_grade_III_cut_off_bmi_girls ~ "Thinness II",
+                                      sex == "f" & z_bmi_eiholzer < eiholzer_Thinness_grade_III_cut_off_bmi_girls ~ "Thinness III")),
+         bmi_cat_iotf = factor(case_when(sex == "m" & z_bmi_iotf >= iotf_severe_obesity_cut_off_bmi_boys ~ "Severe obesity",
+                                      sex == "m" & z_bmi_iotf >= iotf_obesity_cut_off_bmi_boys ~ "Obesity",
+                                      sex == "m" & z_bmi_iotf >= iotf_overweight_cut_off_bmi_boys ~ "Overweight",
+                                      sex == "m" & z_bmi_iotf >= iotf_Thinness_grade_I_cut_off_bmi_boys ~ "Normal",
+                                      sex == "m" & z_bmi_iotf >= iotf_Thinness_grade_II_cut_off_bmi_boys ~ "Thinness I",
+                                      sex == "m" & z_bmi_iotf >= iotf_Thinness_grade_III_cut_off_bmi_boys ~ "Thinness II",
+                                      sex == "m" & z_bmi_iotf < iotf_Thinness_grade_III_cut_off_bmi_boys ~ "Thinness III",
+                                      sex == "f" & z_bmi_iotf >= iotf_severe_obesity_cut_off_bmi_girls ~ "Severe obesity",
+                                      sex == "f" & z_bmi_iotf >= iotf_obesity_cut_off_bmi_girls ~ "Obesity",
+                                      sex == "f" & z_bmi_iotf >= iotf_overweight_cut_off_bmi_girls ~ "Overweight",
+                                      sex == "f" & z_bmi_iotf >= iotf_Thinness_grade_I_cut_off_bmi_girls ~ "Normal",
+                                      sex == "f" & z_bmi_iotf >= iotf_Thinness_grade_II_cut_off_bmi_girls ~ "Thinness I",
+                                      sex == "f" & z_bmi_iotf >= iotf_Thinness_grade_III_cut_off_bmi_girls ~ "Thinness II",
+                                      sex == "f" & z_bmi_iotf < iotf_Thinness_grade_III_cut_off_bmi_girls ~ "Thinness III")),
+         bmi_cat_braegger = factor(case_when(z_bmi_braegger > braegger_severe_obesity_cut_off_bmi ~ "Severe obesity",
+                                      z_bmi_braegger > braegger_obesity_cut_off_bmi ~ "Obesity",
+                                      z_bmi_braegger > braegger_overweight_cut_off_bmi ~ "Overweight",
+                                      z_bmi_braegger >= braegger_Thinness_grade_I_cut_off_bmi ~ "Normal",
+                                      z_bmi_braegger >= braegger_Thinness_grade_II_cut_off_bmi ~ "Thinness I",
+                                      z_bmi_braegger >= braegger_Thinness_grade_III_cut_off_bmi ~ "Thinness II",
+                                      z_bmi_braegger < braegger_Thinness_grade_III_cut_off_bmi ~ "Thinness III")))  
+
+
+```
+
+Reorder bmi categories from Thinness III to Severe obesity:
+
+```{r}
+#| output: false
+#| warning: false
+
+data_participant <- data_participant %>%
+  mutate(bmi_cat_braegger = fct_relevel(bmi_cat_braegger, c("Thinness III",
+                                        "Thinness II",
+                                        "Thinness I",
+                                        "Normal",
+                                        "Overweight",
+                                        "Obesity",
+                                        "Severe obesity")),
+         bmi_cat_eiholzer = fct_relevel(bmi_cat_eiholzer, c("Thinness III",
+                                        "Thinness II",
+                                        "Thinness I",
+                                        "Normal",
+                                        "Overweight",
+                                        "Obesity",
+                                        "Severe obesity")),
+         bmi_cat_iotf = fct_relevel(bmi_cat_iotf,c("Thinness III",
+                                        "Thinness II",
+                                        "Thinness I",
+                                        "Normal",
+                                        "Overweight",
+                                        "Obesity",
+                                        "Severe obesity")))
+
+
+data_bmi <- data_bmi |> 
+  mutate(bmi_cat_braegger = fct_relevel(bmi_cat_braegger, c("Thinness III",
+                                        "Thinness II",
+                                        "Thinness I",
+                                        "Normal",
+                                        "Overweight",
+                                        "Obesity",
+                                        "Severe obesity")),
+         bmi_cat_eiholzer = fct_relevel(bmi_cat_eiholzer, c("Thinness III",
+                                        "Thinness II",
+                                        "Thinness I",
+                                        "Normal",
+                                        "Overweight",
+                                        "Obesity",
+                                        "Severe obesity")),
+         bmi_cat_iotf = fct_relevel(bmi_cat_iotf,c("Thinness III",
+                                        "Thinness II",
+                                        "Thinness I",
+                                        "Normal",
+                                        "Overweight",
+                                        "Obesity",
+                                        "Severe obesity")))  
+
+```
+
+
+I define BMI categories without any thinness category. All individuals below overweight are defined as Normal.
+
+```{r}
+#| output: false
+#| warning: false
+
+data_participant <- data_participant %>% 
+  mutate(bmi_cat_braegger_without_thin = factor(case_when(bmi_cat_braegger == "Thinness I" | bmi_cat_braegger == "Thinness II" | bmi_cat_braegger == "Thinness III" ~  "Normal",
+                                                   TRUE ~ bmi_cat_braegger)),
+         bmi_cat_eiholzer_without_thin = factor(case_when(bmi_cat_eiholzer == "Thinness I" | bmi_cat_eiholzer == "Thinness II" | bmi_cat_eiholzer == "Thinness III" ~  "Normal",
+                                                   TRUE ~ bmi_cat_eiholzer)),
+         bmi_cat_iotf_without_thin = factor(case_when(bmi_cat_iotf == "Thinness I" | bmi_cat_iotf == "Thinness II" | bmi_cat_iotf == "Thinness III" ~  "Normal",
+                                                   TRUE ~ bmi_cat_iotf)))
+
+data_participant <- data_participant %>%
+  mutate(bmi_cat_braegger_without_thin = fct_relevel(bmi_cat_braegger_without_thin, c("Severe obesity",
+                                                                                      "Obesity",
+                                                                                      "Overweight",
+                                                                                      "Normal")),
+           bmi_cat_eiholzer_without_thin = fct_relevel(bmi_cat_eiholzer_without_thin, c("Severe obesity",
+                                                                                      "Obesity",
+                                                                                      "Overweight",
+                                                                                      "Normal")),
+           bmi_cat_iotf_without_thin = fct_relevel(bmi_cat_iotf_without_thin, c("Severe obesity",
+                                                                                      "Obesity",
+                                                                                      "Overweight",
+                                                                                      "Normal")))
+
+
+data_bmi <- data_bmi %>% 
+  mutate(bmi_cat_braegger_without_thin = factor(case_when(bmi_cat_braegger == "Thinness I" | bmi_cat_braegger == "Thinness II" | bmi_cat_braegger == "Thinness III" ~  "Normal",
+                                                   TRUE ~ bmi_cat_braegger)),
+         bmi_cat_eiholzer_without_thin = factor(case_when(bmi_cat_eiholzer == "Thinness I" | bmi_cat_eiholzer == "Thinness II" | bmi_cat_eiholzer == "Thinness III" ~  "Normal",
+                                                   TRUE ~ bmi_cat_eiholzer)),
+         bmi_cat_iotf_without_thin = factor(case_when(bmi_cat_iotf == "Thinness I" | bmi_cat_iotf == "Thinness II" | bmi_cat_iotf == "Thinness III" ~  "Normal",
+                                                   TRUE ~ bmi_cat_iotf)))
+
+data_bmi <- data_bmi %>%
+  mutate(bmi_cat_braegger_without_thin = fct_relevel(bmi_cat_braegger_without_thin, c("Severe obesity",
+                                                                                      "Obesity",
+                                                                                      "Overweight",
+                                                                                      "Normal")),
+           bmi_cat_eiholzer_without_thin = fct_relevel(bmi_cat_eiholzer_without_thin, c("Severe obesity",
+                                                                                      "Obesity",
+                                                                                      "Overweight",
+                                                                                      "Normal")),
+           bmi_cat_iotf_without_thin = fct_relevel(bmi_cat_iotf_without_thin, c("Severe obesity",
+                                                                                      "Obesity",
+                                                                                      "Overweight",
+                                                                                      "Normal")))
+
+
+```
+
+
+I define a BMI category variable with obesity and severe obesity combined.
+
+```{r}
+#| output: false
+#| warning: false
+
+
+data_participant <- data_participant %>% 
+  mutate(bmi_cat_braegger_without_thin_less = factor(case_when(bmi_cat_braegger == "Thinness I" | bmi_cat_braegger == "Thinness II" | bmi_cat_braegger == "Thinness III" ~  "Normal",
+                                                               bmi_cat_braegger == "Severe obesity" ~ "Obesity",
+                                                   TRUE ~ bmi_cat_braegger)),
+         bmi_cat_eiholzer_without_thin_less = factor(case_when(bmi_cat_eiholzer == "Thinness I" | bmi_cat_eiholzer == "Thinness II" | bmi_cat_eiholzer == "Thinness III" ~  "Normal",
+                                                               bmi_cat_eiholzer == "Severe obesity" ~ "Obesity",
+                                                   TRUE ~ bmi_cat_eiholzer)),
+         bmi_cat_iotf_without_thin_less = factor(case_when(bmi_cat_iotf == "Thinness I" | bmi_cat_iotf == "Thinness II" | bmi_cat_iotf == "Thinness III" ~  "Normal",
+                                                           bmi_cat_iotf == "Severe obesity" ~ "Obesity",
+                                                   TRUE ~ bmi_cat_iotf)))
+
+data_participant <- data_participant %>%
+  mutate(bmi_cat_braegger_without_thin_less = fct_relevel(bmi_cat_braegger_without_thin_less, c("Obesity",
+                                                                      "Overweight",
+                                                                      "Normal")),
+           bmi_cat_eiholzer_without_thin_less = fct_relevel(bmi_cat_eiholzer_without_thin_less, c("Obesity",
+                                                                      "Overweight",
+                                                                      "Normal")),
+           bmi_cat_iotf_without_thin_less = fct_relevel(bmi_cat_iotf_without_thin_less, c("Obesity",
+                                                                      "Overweight",
+                                                                      "Normal")))
+
+
+data_bmi <- data_bmi %>% 
+  mutate(bmi_cat_braegger_without_thin_less = factor(case_when(bmi_cat_braegger == "Thinness I" | bmi_cat_braegger == "Thinness II" | bmi_cat_braegger == "Thinness III" ~  "Normal",
+                                                               bmi_cat_braegger == "Severe obesity" ~ "Obesity",
+                                                   TRUE ~ bmi_cat_braegger)),
+         bmi_cat_eiholzer_without_thin_less = factor(case_when(bmi_cat_eiholzer == "Thinness I" | bmi_cat_eiholzer == "Thinness II" | bmi_cat_eiholzer == "Thinness III" ~  "Normal",
+                                                               bmi_cat_eiholzer == "Severe obesity" ~ "Obesity",
+                                                   TRUE ~ bmi_cat_eiholzer)),
+         bmi_cat_iotf_without_thin_less = factor(case_when(bmi_cat_iotf == "Thinness I" | bmi_cat_iotf == "Thinness II" | bmi_cat_iotf == "Thinness III" ~  "Normal",
+                                                           bmi_cat_iotf == "Severe obesity" ~ "Obesity",
+                                                   TRUE ~ bmi_cat_iotf)))
+
+data_bmi <- data_bmi %>%
+  mutate(bmi_cat_braegger_without_thin_less = fct_relevel(bmi_cat_braegger_without_thin_less, c("Obesity",
+                                                                      "Overweight",
+                                                                      "Normal")),
+           bmi_cat_eiholzer_without_thin_less = fct_relevel(bmi_cat_eiholzer_without_thin_less, c("Obesity",
+                                                                      "Overweight",
+                                                                      "Normal")),
+           bmi_cat_iotf_without_thin_less = fct_relevel(bmi_cat_iotf_without_thin_less, c("Obesity",
+                                                                      "Overweight",
+                                                                      "Normal")))
+
+```
+
+
+```{r}
+
+data_bmi <- data_bmi |> 
+  mutate(obesity = factor(case_when(bmi_cat_braegger_without_thin_less == "Obesity" ~ "yes",
+                             bmi_cat_iotf_without_thin_less == "Overweight" ~ "no",
+                             bmi_cat_iotf_without_thin_less == "Normal" ~ "no"),
+                          levels = c("no", "yes")))
+
+```
+
+
+```{r}
+
+data_participant <- data_participant |> 
+  left_join(data_bmi |>
+              filter(obesity == "yes") |> 
+              count(participant_id) |> rename("number_bmi_measurements_obesity" = "n"),
+            by = "participant_id") |> 
+  mutate(bmi_measurement_obesity = case_when(number_bmi_measurements_obesity >= 1 ~ "yes",
+                                        is.na(number_bmi_measurements_obesity) ~ "no")) |> 
+  left_join(data_bmi |>
+              filter(obesity == "no") |> 
+              count(participant_id) |> rename("number_bmi_measurements_no_obesity" = "n"),
+            by = "participant_id") |> 
+  mutate(bmi_measurement_no_obesity = case_when(number_bmi_measurements_no_obesity >= 1 ~ "yes",
+                                        is.na(number_bmi_measurements_no_obesity) ~ "no"))
+
+data_bmi <- data_bmi |> 
+  left_join(data_participant |> select(bmi_measurement_obesity, bmi_measurement_no_obesity, participant_id), by = "participant_id")
+
+
+```
+
+
+
+# Descriptive
+
+# Main analysis
+
+## Weighting
+
+Every participant should contribute the same amount to the analysis, whether they had 1 or 5 measurements.
+
+```{r}
+
+data_bmi <- data_bmi |> 
+  mutate(analysis_weight = 1/number_bmi_measurements_total,
+         analysis_weight_age_group = 1/number_bmi_measurements_age_group,
+         analysis_weight_age_cat = 1/number_bmi_measurements_age_cat)
+
+```
+
+```{r}
+
+
+svydesign(id = ~participant_id, data = data_bmi, weights = ~analysis_weight) |> 
+  as_survey() |> 
+  select(sex, age_group_bmi, nationality_group_detailed, swiss_sep_3, swiss_sep_3_quintile, hospital, number_bmi_measurements_total) |>
+  tbl_svysummary(type = list(all_continuous() ~ "continuous2"),
+              statistic = list(all_continuous2() ~ c("{mean} ({sd})", "{median} ({p25}, {p75})", "{min}, {max}"),
+                               all_categorical() ~ "{n} ({p})"),
+              missing = "ifany",
+              missing_stat = "{N_miss} ({p_miss}%)",
+              percent = "column",
+              digits = list(all_categorical() ~ 0,
+                            all_continuous() ~ 1))
+
+
+data_general_population_detailed_nationality
+
+
+
+
+
+```
+
+Standardized difference before weighting
+
+```{r}
+
+
+table_participant_bmi <- svydesign(id = ~participant_id, data = data_bmi, weights = ~analysis_weight) |> 
+  as_survey() |> 
+  select(sex, age_group_bmi, nationality_group_detailed, swiss_sep_3, swiss_sep_3_quintile, hospital, number_bmi_measurements_total) |>
+  tbl_svysummary(type = list(all_continuous() ~ "continuous2"),
+              statistic = list(all_continuous2() ~ c("{mean} ({sd})", "{median} ({p25}, {p75})", "{min}, {max}"),
+                               all_categorical() ~ "{n} ({p})"),
+              missing = "ifany",
+              missing_stat = "{N_miss} ({p_miss}%)",
+              percent = "column",
+              digits = list(all_categorical() ~ 5,
+                            all_continuous() ~ 1))
+
+
+table_participant_bmi <- table_participant_bmi |> 
+  as_tibble() |> 
+  rename("Group" = "**Characteristic**", "output" = "**N = 111,510**") |> 
+  mutate(Group = case_when(Group == "Preschool age: 2–5" ~ "Preschool age: 2–5",
+                           Group == "School age: 6–11" ~ "School age: 6–11",
+                           Group == "Adolescence: 12–17" ~ "Adolescence: 12–17",
+                           Group == "m" ~ "Male",
+                           Group == "f" ~ "Female",
+                           Group == "Swiss" ~ "Swiss",
+                           Group == "Northern Europe" ~ "Northern Europe",
+                           Group == "Western Europe" ~ "Western Europe",
+                           Group == "Southern Europe" ~ "Southern Europe",
+                           Group == "Eastern Europe" ~ "Eastern Europe",
+                           Group == "Other" ~ "Other",
+                           Group == "1" ~ "Quintile 1",
+                           Group == "2" ~ "Quintile 2",
+                           Group == "3" ~ "Quintile 3",
+                           Group == "4" ~ "Quintile 4",
+                           Group == "5" ~ "Quintile 5")) |> 
+  filter(!is.na(Group))
+
+
+table_participant_bmi <- table_participant_bmi |> 
+  separate(
+    col = output, 
+    into = c("n", "proportion"), 
+    sep = " \\("
+  ) |> 
+  mutate(
+    n = str_remove_all(n, ","),
+    proportion = str_remove_all(proportion, "[%\\)]")
+  ) |> 
+  mutate(
+    n = as.numeric(n),
+    proportion = as.numeric(proportion)
+  ) |> 
+  mutate(proportion = as.numeric(proportion)/100)
+
+table_participant_bmi <- table_participant_bmi |> 
+  rename("n_SwissPedGrowth" = "n", "proportion_SwissPedGrowth" = "proportion")
+
+
+data_general_population_detailed_nationality <- data_general_population_detailed_nationality |> 
+  select(-c(Mean, SD)) |> 
+  filter(Group != "Mean (SD)") |> 
+  rename("proportion_genpop" = "prop_avg_2017_2023")
+
+standardized_difference_table_bmi <- data_general_population_detailed_nationality |>
+  left_join(table_participant_bmi, by = "Group") |> 
+  mutate(weighting = "Before weighting")
+
+
+standardized_difference_table_bmi <- standardized_difference_table_bmi |> 
+  mutate(SPD = 2*(asin(sqrt(proportion_SwissPedGrowth)) - asin(sqrt(proportion_genpop))))
+
+standardized_difference_table_bmi |> select(Group, proportion_SwissPedGrowth, proportion_genpop, SPD)
+
+```
+
+
+Weighting using raking and survey package
+
+
+```{r}
+
+# target margins of the genpop
+
+pop.age <- data_general_population_detailed_nationality |> 
+  filter(Variable == "Age") |> 
+  mutate(age = factor(Group,
+                      levels = c("Preschool age: 2–5", "School age: 6–11", "Adolescence: 12–17"))) |> 
+  mutate(Freq = proportion_genpop) |> 
+  select(age, Freq)
+  
+pop.sex <- data_general_population_detailed_nationality |> 
+  filter(Variable == "Sex") |> 
+  mutate(sex = factor(Group,
+                      levels = c("Female", "Male"))) |> 
+  mutate(Freq = proportion_genpop) |> 
+  select(sex, Freq)
+
+pop.nationality <- data_general_population_detailed_nationality |> 
+  filter(Variable == "Nationality") |> 
+  filter(Group != "Missing") |> 
+  mutate(nationality = factor(Group,
+                      levels = c("Swiss", "Northern Europe", "Western Europe", "Southern Europe", "Eastern Europe", "Other"))) |> 
+  mutate(Freq = proportion_genpop) |> 
+  select(nationality, Freq)
+
+
+pop.ssep <- data_general_population_detailed_nationality |> 
+  filter(Variable == "SSEP") |> 
+  mutate(swiss_sep_3_quintile = factor(Group,
+                                     levels = c("Quintile 1", "Quintile 2","Quintile 3","Quintile 4","Quintile 5"),
+                                     labels = c("1", "2", "3", "4", "5"))) |> 
+  mutate(Freq = proportion_genpop) |> 
+  select(swiss_sep_3_quintile, Freq)
+
+
+data_to_rake_bmi <- data_bmi |>
+  select(weight_id, participant_id, age_group_bmi, sex, nationality_group_detailed, swiss_sep_3_quintile, analysis_weight) |> 
+  mutate(age = factor(age_group_bmi,
+                      levels = c("Preschool age: 2–5", "School age: 6–11", "Adolescence: 12–17"),
+                      labels = c("Preschool age: 2–5", "School age: 6–11", "Adolescence: 12–17")),
+         sex = factor(case_when(sex == "f" ~ "Female",
+                                sex == "m" ~ "Male"),
+                      levels = c("Female", "Male")),
+         nationality = factor(nationality_group_detailed,
+                              levels = c("Swiss", "Northern Europe", "Western Europe", "Southern Europe", "Eastern Europe", "Other")),
+         swiss_sep_3_quintile = factor(swiss_sep_3_quintile,
+                                     levels = c("1", "2", "3", "4", "5"))) |> 
+  select(weight_id, participant_id, age, sex, nationality, swiss_sep_3_quintile, analysis_weight) |> 
+  drop_na()
+
+
+
+data_raked_bmi <- rake(svydesign(ids = ~participant_id, data = data_to_rake_bmi, weights = ~analysis_weight),
+                        sample.margins = list(~age, ~sex, ~nationality, ~swiss_sep_3_quintile),
+                        population.margins = list(pop.age, pop.sex, pop.nationality, pop.ssep))
+
+weights_bmi <- data.frame(weight_id = data_to_rake_bmi$weight_id,
+                                      genpop_weight = weights(data_raked_bmi),
+                                      stabilized_genpop_weight = weights(data_raked_bmi)/mean(weights(data_raked_bmi)))
+
+summary(weights_bmi$stabilized_genpop_weight)
+
+
+# add weights back to data
+
+data_bmi <- data_bmi |> 
+  left_join(weights_bmi |> select(weight_id, genpop_weight), by = "weight_id")
+
+data_bmi <- data_bmi |> 
+  mutate(genpop_analysis_weight = genpop_weight/number_bmi_measurements_total,
+         stabilized_genpop_analysis_weight = genpop_analysis_weight*number_participants_total/sum(genpop_analysis_weight))
+
+
+sum(data_bmi$stabilized_genpop_analysis_weight)
+
+data_bmi <- data_bmi |> 
+  group_by(age_group_bmi) |> 
+  mutate(genpop_analysis_weight_age_group = genpop_weight/number_bmi_measurements_age_group,
+         stabilized_genpop_analysis_weight_age_group = genpop_analysis_weight_age_group*number_participants_age_group/sum(genpop_analysis_weight_age_group)) |> 
+  ungroup()
+
+sum(data_bmi$stabilized_genpop_analysis_weight_age_group[data_bmi$age_group_bmi == "Preschool age: 2–5"])
+
+
+data_bmi <- data_bmi |> 
+  group_by(age_cat) |> 
+  mutate(genpop_analysis_weight_age_cat = genpop_weight/number_bmi_measurements_age_cat,
+         stabilized_genpop_analysis_weight_age_cat = genpop_analysis_weight_age_cat*number_participants_age_cat/sum(genpop_analysis_weight_age_cat)) |> 
+  ungroup()
+
+sum(data_bmi$stabilized_genpop_analysis_weight_age_cat[data_bmi$age_cat == "2"])
+
+```
+
+
+Summary statistics after weighting
+
+```{r}
+
+svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight) |> 
+  as_survey() |> 
+  select(sex, age_group_bmi, nationality_group_detailed, swiss_sep_3, swiss_sep_3_quintile) |>
+  tbl_svysummary(type = list(all_continuous() ~ "continuous2"),
+              statistic = list(all_continuous2() ~ c("{mean} ({sd})", "{median} ({p25}, {p75})", "{min}, {max}"),
+                               all_categorical() ~ "{n} ({p})"),
+              missing = "ifany",
+              missing_stat = "{N_miss} ({p_miss}%)",
+              percent = "column",
+              digits = list(all_categorical() ~ 0,
+                            all_continuous() ~ 1))
+
+
+```
+
+
+Standardized difference after weighting
+
+```{r}
+
+table_participant_bmi <- svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight) |> 
+  as_survey() |> 
+  select(sex, age_group_bmi, nationality_group_detailed, swiss_sep_3, swiss_sep_3_quintile) |>
+  tbl_svysummary(type = list(all_continuous() ~ "continuous2"),
+              statistic = list(all_continuous2() ~ c("{mean} ({sd})", "{median} ({p25}, {p75})", "{min}, {max}"),
+                               all_categorical() ~ "{n} ({p})"),
+              missing = "ifany",
+              missing_stat = "{N_miss} ({p_miss}%)",
+              percent = "column",
+              digits = list(all_categorical() ~ 5,
+                            all_continuous() ~ 1))
+
+table_participant_bmi
+
+table_participant_bmi <- table_participant_bmi |> 
+  as_tibble() |> 
+  rename("Group" = "**Characteristic**", "output" = "**N = 111,510**") |> 
+  mutate(Group = case_when(Group == "Preschool age: 2–5" ~ "Preschool age: 2–5",
+                           Group == "School age: 6–11" ~ "School age: 6–11",
+                           Group == "Adolescence: 12–17" ~ "Adolescence: 12–17",
+                           Group == "m" ~ "Male",
+                           Group == "f" ~ "Female",
+                           Group == "Swiss" ~ "Swiss",
+                           Group == "Northern Europe" ~ "Northern Europe",
+                           Group == "Western Europe" ~ "Western Europe",
+                           Group == "Southern Europe" ~ "Southern Europe",
+                           Group == "Eastern Europe" ~ "Eastern Europe",
+                           Group == "Other" ~ "Other",
+                           Group == "1" ~ "Quintile 1",
+                           Group == "2" ~ "Quintile 2",
+                           Group == "3" ~ "Quintile 3",
+                           Group == "4" ~ "Quintile 4",
+                           Group == "5" ~ "Quintile 5")) |> 
+  filter(!is.na(Group))
+
+
+table_participant_bmi <- table_participant_bmi |> 
+  separate(
+    col = output, 
+    into = c("n", "proportion"), 
+    sep = " \\("
+  ) |> 
+  mutate(
+    n = str_remove_all(n, ","),
+    proportion = str_remove_all(proportion, "[%\\)]")
+  ) |> 
+  mutate(
+    n = as.numeric(n),
+    proportion = as.numeric(proportion)
+  ) |> 
+  mutate(proportion = as.numeric(proportion)/100)
+
+table_participant_bmi <- table_participant_bmi |> 
+  rename("n_SwissPedGrowth" = "n", "proportion_SwissPedGrowth" = "proportion")
+
+
+standardized_difference_table_bmi_after <- data_general_population_detailed_nationality |>
+  left_join(table_participant_bmi, by = "Group") |> 
+  mutate(weighting = "After weighting")
+
+
+standardized_difference_table_bmi_after <- standardized_difference_table_bmi_after |> 
+  mutate(SPD = 2*(asin(sqrt(proportion_SwissPedGrowth)) - asin(sqrt(proportion_genpop))))
+
+standardized_difference_table_bmi_after |> select(Group, proportion_SwissPedGrowth, proportion_genpop, SPD)
+
+```
+
+
+Love plot
+
+```{r}
+
+variable_names <- data.frame(Group = c("bold('Age (years)')", "bold(Nationality)", "bold(Sex)", "bold('Swiss-SEP')"),
+                             Variable = c("Age", "Nationality", "Sex", "SSEP"),
+                             SPD = 0,
+                             transparency = "transparent")
+
+love_plot_bmi <- standardized_difference_table_bmi |> 
+  bind_rows(standardized_difference_table_bmi_after) |> 
+  mutate(transparency = "normal") |> 
+  mutate(Group = case_when(Group == "Preschool age: 2–5" ~ "'Preschool age: 2–5'",
+                           Group == "School age: 6–11" ~ "'School age: 6–11'",
+                           Group == "Adolescence: 12–17" ~ "'Adolescence: 12–17'",
+                           Group == "Male" ~ "Male",
+                           Group == "Female" ~ "Female",
+                           Group == "Swiss" ~ "Swiss",
+                           Group == "Northern Europe" ~ "'Northern Europe'",
+                           Group == "Western Europe" ~ "'Western Europe'",
+                           Group == "Southern Europe" ~ "'Southern Europe'",
+                           Group == "Eastern Europe" ~ "'Eastern Europe'",
+                           Group == "Other" ~ "Other",
+                           Group == "Quintile 1" ~ "'Quintile 1'",
+                           Group == "Quintile 2" ~ "'Quintile 2'",
+                           Group == "Quintile 3" ~ "'Quintile 3'",
+                           Group == "Quintile 4" ~ "'Quintile 4'",
+                           Group == "Quintile 5" ~ "'Quintile 5'")) |> 
+  bind_rows(variable_names) |> 
+  mutate(Group = factor(Group,
+                        levels = c("'Quintile 5'", "'Quintile 4'", "'Quintile 3'", "'Quintile 2'", "'Quintile 1'", "bold('Swiss-SEP')",
+                                   "Other", "'Eastern Europe'", "'Southern Europe'", "'Western Europe'", "'Northern Europe'", "Swiss", "bold(Nationality)",
+                                   "Male", "Female", "bold(Sex)",
+                                   "'Adolescence: 12–17'", "'School age: 6–11'", "'Preschool age: 2–5'", "bold('Age (years)')"))) |> 
+  ggplot(aes(y = Group, x = abs(SPD), colour = weighting, alpha = transparency))+
+  geom_vline(xintercept = 0.1, linewidth = 0.5, linetype = "dashed")+
+  geom_point(size = 2)+
+  scale_x_continuous(name = "Standardized difference",
+                     expand = c(0.02,0), limits = c(0, 0.3), breaks = c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3))+
+  scale_y_discrete(labels = function(x) parse(text = x), expand = c(0.01,0))+
+  scale_colour_manual(breaks = c("Before weighting", "After weighting"), values = c(unibeRed(), unibeIce()))+
+  scale_alpha_manual(breaks = c("transparent", "normal"), values = c(0, 100), guide = "none")+
+  theme_minimal()+
+  theme(panel.grid.minor.x = element_blank(),
+        panel.grid.major.y = element_blank(),
+        axis.text = element_text(colour = "black", size = 10),
+        axis.title.y = element_blank(),
+        legend.position = "top",
+        legend.title = element_blank(),
+        legend.text = element_text(colour = "black", size = 10),
+        plot.margin = margin(10,10,10,10))
+
+love_plot_bmi
+
+ggsave(filename=file.path(here("output","figures","love_plot_bmi.svg")),love_plot_bmi,device=svg,units="cm", height=15,width=16)
+
+```
+
+
+## Table 1: Characteristics of SwissPedGrowth
+
+
+unweighted
+
+
+```{r}
+
+data_participant |> 
+  select(sex, bmi_measurement_preschool, bmi_measurement_school, bmi_measurement_adolescence, nationality_group_detailed, swiss_sep_3, swiss_sep_3_quintile, hospital, bmi_measurement_total, bmi_measurement_diagnosis_obesity, bmi_measurement_diagnosis_not_obesity, bmi_measurement_diagnosis_unavailable) |>
+  tbl_summary(type = list(all_continuous() ~ "continuous2"),
+              statistic = list(all_continuous2() ~ c("{mean} ({sd})", "{median} ({p25}, {p75})", "{min}, {max}"),
+                               all_categorical() ~ "{n} ({p})"),
+              missing = "ifany",
+              missing_stat = "{N_miss} ({p_miss}%)",
+              percent = "column",
+              digits = list(all_categorical() ~ 0,
+                            all_continuous() ~ 1))
+
+
+svydesign(id = ~participant_id, data = data_bmi, weights = ~analysis_weight) |> 
+  as_survey() |> 
+  select(sex, bmi_measurement_preschool, bmi_measurement_school, bmi_measurement_adolescence, nationality_group_detailed, swiss_sep_3, swiss_sep_3_quintile, hospital, bmi_measurement_total, bmi_measurement_diagnosis_obesity, bmi_measurement_diagnosis_not_obesity, bmi_measurement_diagnosis_unavailable) |>
+  tbl_svysummary(type = list(all_continuous() ~ "continuous2"),
+              statistic = list(all_continuous2() ~ c("{mean} ({sd})", "{median} ({p25}, {p75})", "{min}, {max}"),
+                               all_categorical() ~ "{n} ({p})"),
+              missing = "ifany",
+              missing_stat = "{N_miss} ({p_miss}%)",
+              percent = "column",
+              digits = list(all_categorical() ~ 0,
+                            all_continuous() ~ 1))
+
+
+```
+
+
+weighted
+
+```{r}
+
+
+
+svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight) |> 
+  as_survey() |> 
+  select(sex, bmi_measurement_preschool, bmi_measurement_school, bmi_measurement_adolescence, nationality_group_detailed, swiss_sep_3, swiss_sep_3_quintile, hospital, bmi_measurement_total, bmi_measurement_diagnosis_obesity, bmi_measurement_diagnosis_not_obesity, bmi_measurement_diagnosis_unavailable) |>
+  tbl_svysummary(type = list(all_continuous() ~ "continuous2"),
+              statistic = list(all_continuous2() ~ c("{mean} ({sd})", "{median} ({p25}, {p75})", "{min}, {max}"),
+                               all_categorical() ~ "{n} ({p})"),
+              missing = "ifany",
+              missing_stat = "{N_miss} ({p_miss}%)",
+              percent = "column",
+              digits = list(all_categorical() ~ 0,
+                            all_continuous() ~ 1))
+
+
+
+```
+
+## Aim 1: Prevalence of obesity
+
+### Figure 1: Barplots of overweight and obesity
+
+#### Total
+
+```{r}
+
+ggtext_size <- function(base_size, ratio = 1) {
+  ratio * base_size / ggplot2::.pt
+}
+
+table_overweight_obesity_total <- svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight) |> 
+  as_survey() |> 
+  select(bmi_cat_iotf_without_thin_less) |>
+  tbl_svysummary(type = list(all_continuous() ~ "continuous2"),
+              statistic = list(all_continuous2() ~ c("{mean} ({sd})")),
+              missing = "ifany",
+              missing_stat = "{N_miss} ({p_miss}%)",
+              percent = "column",
+              digits = list(all_categorical() ~ 5,
+                            all_continuous() ~ 2)) |> 
+  add_ci(style_fun = list(all_categorical() ~ label_style_sigfig(digits = 5)))
+
+table_overweight_obesity_total
+
+table_overweight_obesity_total <- table_overweight_obesity_total |>
+  as_tibble() |>
+  rename(
+    category_label = 1,
+    n_prop = 2,
+    ci_range = 3
+  ) |>
+  filter(!category_label %in% c("bmi_cat_iotf_without_thin_less")) |>
+  mutate(
+    n = as.numeric(str_remove_all(str_extract(n_prop, "^[0-9,]+"), ",")),
+    prop = as.numeric(str_extract(n_prop, "(?<=\\()[0-9.]+"))/100,
+    lower = as.numeric(str_extract(ci_range, "^[0-9.]+")),
+    upper = as.numeric(str_extract(ci_range, "(?<=, )[0-9.]+"))
+  ) |>
+  select(bmi_category = category_label, n, prop, lower, upper) |> 
+  mutate(bmi_category = factor(bmi_category, levels = c("Normal", "Overweight", "Obesity"))) |> 
+  mutate(bmi_category = case_when(bmi_category == "Normal" ~ "Overweight (incl. obesity)",
+                                  TRUE ~ bmi_category),
+         n = case_when(bmi_category == "Overweight (incl. obesity)" ~ sum(n) - n,
+                       TRUE ~ n),
+         prop = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-prop,
+                       TRUE ~ prop),
+         lower_ci = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-upper,
+                       TRUE ~ lower),
+         upper_ci = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-lower,
+                       TRUE ~ upper)) |> 
+  mutate(prop_label = round(prop*100)) |> 
+  select(bmi_category, n, prop, lower_ci, upper_ci, prop_label) |> 
+  mutate(group_label = "Total") |>  
+  mutate(prop_obesity = case_when(bmi_category == "Obesity" ~ prop,
+                                  TRUE ~ NA)) |> 
+  fill(prop_obesity, .direction = "updown")
+
+
+bar_overweight_obesity_total <- table_overweight_obesity_total |> 
+  ggplot(aes(x = group_label, y = prop)) +
+  geom_bar(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(fill = "Overweight (incl. Obesity)"),
+    stat = "identity",
+    orientation = "x",
+    width = 0.6
+  )+
+  geom_errorbar(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(ymin = lower_ci, ymax = upper_ci),
+    stat = "identity",
+    orientation = "x",
+    width = 0.2
+  ) + 
+  geom_bar(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(fill = "Obesity"),
+    stat = "identity",
+    orientation = "x",
+    width = 0.4
+  ) + 
+  geom_errorbar(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(ymin = lower_ci, ymax = upper_ci),
+    stat = "identity",
+    orientation = "x",
+    width = 0.2
+  ) + 
+  scale_fill_manual(
+    values = c(
+      "Overweight (incl. Obesity)" = unibeApricot(),
+      "Obesity" = unibeRed())
+    )+
+  geom_text(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(label = prop_label, y = (prop-prop_obesity)/2+prop_obesity),
+    color = "black",
+    size = ggtext_size(10),
+  ) +
+  geom_text(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(label = prop_label, y = prop/2),
+    color = "black", 
+    size = ggtext_size(10)
+  ) +
+  scale_x_discrete(name = "Total")+
+  scale_y_continuous(limits = c(0,0.31), expand = c(0,0), breaks = c(0,.05,0.10, 0.15,0.20, 0.25, 0.30), labels = scales::label_percent())+
+  theme_minimal()+
+  theme(axis.text.y = element_text(colour = "black", size = 8),
+        axis.text.x = element_blank(),
+        axis.title.x = element_text(colour = "black", size = 11, face = "bold"),
+        axis.title.y = element_blank(),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "bottom",
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10, colour = "black"))
+
+
+bar_overweight_obesity_total
+
+
+```
+
+
+#### Sex
+
+```{r}
+
+table_overweight_obesity_sex <- svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight, strata = ~sex) |> 
+  as_survey() |> 
+  select(bmi_cat_iotf_without_thin_less, sex) |>
+  tbl_svysummary(by = "sex",
+                 type = list(all_continuous() ~ "continuous2"),
+              statistic = list(all_continuous2() ~ c("{mean} ({sd})")),
+              missing = "ifany",
+              missing_stat = "{N_miss} ({p_miss}%)",
+              percent = "column",
+              digits = list(all_categorical() ~ 5,
+                            all_continuous() ~ 2)) |> 
+  add_ci(style_fun = list(all_categorical() ~ label_style_sigfig(digits = 5)))
+
+table_overweight_obesity_sex
+
+table_overweight_obesity_sex <- table_overweight_obesity_sex |>
+  as_tibble() |>
+  rename(
+    category_label = 1,
+    n_prop_boys = 2,
+    ci_range_boys = 3,
+    n_prop_girls = 4,
+    ci_range_girls = 5,
+  ) |>
+  filter(category_label != "bmi_cat_iotf_without_thin_less") |>
+  pivot_longer(
+    cols = -category_label, 
+    names_to = c(".value", "sex"), 
+    names_pattern = "(.*)_(boys|girls)"
+  ) |> 
+  mutate(
+    n = as.numeric(str_remove_all(str_extract(n_prop, "^[0-9,]+"), ",")),
+    prop = as.numeric(str_extract(n_prop, "(?<=\\()[0-9.]+"))/100,
+    lower = as.numeric(str_extract(ci_range, "^[0-9.]+")),
+    upper = as.numeric(str_extract(ci_range, "(?<=, )[0-9.]+"))
+  ) |>
+  select(bmi_category = category_label, n, prop, lower, upper, sex) |> 
+  mutate(bmi_category = factor(bmi_category, levels = c("Normal", "Overweight", "Obesity"))) |> 
+  mutate(bmi_category = case_when(bmi_category == "Normal" ~ "Overweight (incl. obesity)",
+                                  TRUE ~ bmi_category),
+         n = case_when(bmi_category == "Overweight (incl. obesity)" ~ sum(n) - n,
+                       TRUE ~ n),
+         prop = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-prop,
+                       TRUE ~ prop),
+         lower_ci = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-upper,
+                       TRUE ~ lower),
+         upper_ci = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-lower,
+                       TRUE ~ upper)) |> 
+  mutate(prop_label = round(prop*100)) |> 
+  select(sex, bmi_category, n, prop, lower_ci, upper_ci, prop_label) |> 
+  group_by(sex) |> 
+  mutate(prop_obesity = case_when(bmi_category == "Obesity" ~ prop,
+                                  TRUE ~ NA)) |> 
+  fill(prop_obesity, .direction = "updown") |> 
+  ungroup() |> 
+  mutate(sex = factor(sex,
+                      levels = c("girls", "boys")))
+
+
+bar_overweight_obesity_sex <- table_overweight_obesity_sex |> 
+  ggplot(aes(x = sex, y = prop)) +
+  geom_bar(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(fill = "Overweight (incl. Obesity)"),
+    stat = "identity",
+    orientation = "x",
+    width = 0.6
+  )+
+  geom_errorbar(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(ymin = lower_ci, ymax = upper_ci),
+    stat = "identity",
+    orientation = "x",
+    width = 0.2
+  ) + 
+  geom_bar(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(fill = "Obesity"),
+    stat = "identity",
+    orientation = "x",
+    width = 0.4
+  ) + 
+  geom_errorbar(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(ymin = lower_ci, ymax = upper_ci),
+    stat = "identity",
+    orientation = "x",
+    width = 0.2
+  ) + 
+  scale_fill_manual(
+    values = c(
+      "Overweight (incl. Obesity)" = unibeApricot(),
+      "Obesity" = unibeRed())
+    )+
+  geom_text(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(label = prop_label, y = (prop-prop_obesity)/2 +prop_obesity),
+    color = "black",
+    size = ggtext_size(10),
+  ) +
+  geom_text(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(label = prop_label, y = prop_obesity/2),
+    color = "black", 
+    size = ggtext_size(10)
+  ) +
+  scale_x_discrete(name = "Sex",
+                   breaks = c("boys", "girls"), labels = c("Boys", "Girls"))+
+  scale_y_continuous(limits = c(0,0.31), expand = c(0,0), breaks = c(0,.05,0.10, 0.15,0.20, 0.25, 0.30), labels = scales::label_percent())+
+  theme_minimal()+
+  theme(axis.text.y = element_text(colour = "black", size = 8),
+        axis.text.x = element_text(colour = "black", size = 8),
+        axis.title.x = element_text(colour = "black", size = 11, face = "bold"),
+        axis.title.y = element_blank(),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "bottom",
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10, colour = "black"),
+        plot.margin = margin(t = 0.5, b = 0.5, r = 0.5, l = 0.5, unit = "cm"))
+
+
+bar_overweight_obesity_sex
+
+
+```
+
+#### Age
+
+```{r}
+
+table_overweight_obesity_age <- svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight_age_group, strata = ~age_group_bmi, nest = TRUE) |> 
+  as_survey() |> 
+  select(bmi_cat_iotf_without_thin_less, age_group_bmi) |>
+  tbl_svysummary(by = "age_group_bmi",
+                 type = list(all_continuous() ~ "continuous2"),
+              statistic = list(all_continuous2() ~ c("{mean} ({sd})")),
+              missing = "ifany",
+              missing_stat = "{N_miss} ({p_miss}%)",
+              percent = "column",
+              digits = list(all_categorical() ~ 5,
+                            all_continuous() ~ 2)) |> 
+  add_ci(style_fun = list(all_categorical() ~ label_style_sigfig(digits = 5)))
+
+table_overweight_obesity_age
+
+table_overweight_obesity_age <- table_overweight_obesity_age |>
+  as_tibble() |>
+  rename(
+    category_label = 1,
+    n_prop_preschool = 2,
+    ci_range_preschool = 3,
+    n_prop_school = 4,
+    ci_range_school = 5,
+    n_prop_adolescence = 6,
+    ci_range_adolescence = 7,
+  ) |>
+  filter(category_label != "bmi_cat_iotf_without_thin_less") |>
+  pivot_longer(
+    cols = -category_label, 
+    names_to = c(".value", "age"), 
+    names_pattern = "(.*)_(preschool|school|adolescence)"
+  ) |> 
+  mutate(
+    n = as.numeric(str_remove_all(str_extract(n_prop, "^[0-9,]+"), ",")),
+    prop = as.numeric(str_extract(n_prop, "(?<=\\()[0-9.]+"))/100,
+    lower = as.numeric(str_extract(ci_range, "^[0-9.]+")),
+    upper = as.numeric(str_extract(ci_range, "(?<=, )[0-9.]+"))
+  ) |>
+  select(bmi_category = category_label, n, prop, lower, upper, age) |> 
+  mutate(bmi_category = factor(bmi_category, levels = c("Normal", "Overweight", "Obesity"))) |> 
+  mutate(bmi_category = case_when(bmi_category == "Normal" ~ "Overweight (incl. obesity)",
+                                  TRUE ~ bmi_category),
+         n = case_when(bmi_category == "Overweight (incl. obesity)" ~ sum(n) - n,
+                       TRUE ~ n),
+         prop = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-prop,
+                       TRUE ~ prop),
+         lower_ci = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-upper,
+                       TRUE ~ lower),
+         upper_ci = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-lower,
+                       TRUE ~ upper)) |> 
+  mutate(prop_label = round(prop*100)) |> 
+  select(age, bmi_category, n, prop, lower_ci, upper_ci, prop_label) |> 
+  mutate(age = factor(age,
+                      levels = c("preschool", "school", "adolescence"))) |> 
+  group_by(age) |> 
+  mutate(prop_obesity = case_when(bmi_category == "Obesity" ~ prop,
+                                  TRUE ~ NA)) |> 
+  fill(prop_obesity, .direction = "updown") |> 
+  ungroup()
+
+
+bar_overweight_obesity_age <- table_overweight_obesity_age |> 
+  ggplot(aes(x = age, y = prop)) +
+  geom_bar(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(fill = "Overweight (incl. Obesity)"),
+    stat = "identity",
+    orientation = "x",
+    width = 0.6
+  )+
+  geom_errorbar(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(ymin = lower_ci, ymax = upper_ci),
+    stat = "identity",
+    orientation = "x",
+    width = 0.2
+  ) + 
+  geom_bar(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(fill = "Obesity"),
+    stat = "identity",
+    orientation = "x",
+    width = 0.4
+  ) + 
+  geom_errorbar(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(ymin = lower_ci, ymax = upper_ci),
+    stat = "identity",
+    orientation = "x",
+    width = 0.2
+  ) + 
+  scale_fill_manual(
+    values = c(
+      "Overweight (incl. Obesity)" = unibeApricot(),
+      "Obesity" = unibeRed())
+    )+
+  geom_text(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(label = prop_label, y = (prop-prop_obesity)/2+prop_obesity),
+    color = "black",
+    size = ggtext_size(10),
+  ) +
+  geom_text(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(label = prop_label, y = prop_obesity/2),
+    color = "black", 
+    size = ggtext_size(10)
+  ) +
+  scale_x_discrete(name = "Age (years)",
+                   breaks = c("adolescence", "school", "preschool"), labels = c("12–17", "6–11", "2–5"))+
+  scale_y_continuous(limits = c(0,0.31), expand = c(0,0), breaks = c(0,.05,0.10, 0.15,0.20, 0.25, 0.30), labels = scales::label_percent())+
+  theme_minimal()+
+  theme(axis.text.y = element_text(colour = "black", size = 8),
+        axis.text.x = element_text(colour = "black", size = 8),
+        axis.title.x = element_text(colour = "black", size = 11, face = "bold"),
+        axis.title.y = element_blank(),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "bottom",
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10, colour = "black"),
+        plot.margin = margin(t = 0.5, b = 0.5, r = 0.5, l = 0.5, unit = "cm"))
+
+
+bar_overweight_obesity_age
+
+
+```
+
+
+
+#### Nationality
+
+```{r}
+
+table_overweight_obesity_nationality <- svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight, strata = ~nationality_group_detailed) |> 
+  as_survey() |> 
+  select(bmi_cat_iotf_without_thin_less, nationality_group_detailed) |>
+  tbl_svysummary(by = "nationality_group_detailed",
+                 type = list(all_continuous() ~ "continuous2"),
+              statistic = list(all_continuous2() ~ c("{mean} ({sd})")),
+              missing = "ifany",
+              missing_stat = "{N_miss} ({p_miss}%)",
+              percent = "column",
+              digits = list(all_categorical() ~ 5,
+                            all_continuous() ~ 2)) |> 
+  add_ci(style_fun = list(all_categorical() ~ label_style_sigfig(digits = 5)))
+
+table_overweight_obesity_nationality
+
+table_overweight_obesity_nationality <- table_overweight_obesity_nationality |>
+  as_tibble() |>
+  rename(
+    category_label= 1,
+    n_prop_swiss = 2,
+    ci_range_swiss = 3,
+    n_prop_north = 4,
+    ci_range_north = 5,
+    n_prop_west = 6,
+    ci_range_west = 7,
+    n_prop_south = 8,
+    ci_range_south = 9,
+    n_prop_east = 10,
+    ci_range_east = 11,
+    n_prop_other = 12,
+    ci_range_other = 13,
+  ) |>
+  filter(category_label != "bmi_cat_iotf_without_thin_less") |>
+  pivot_longer(
+    cols = -category_label, 
+    names_to = c(".value", "nationality"), 
+    names_pattern = "(.*)_(swiss|north|west|south|east|other)"
+  ) |> 
+  mutate(
+    n = as.numeric(str_remove_all(str_extract(n_prop, "^[0-9,]+"), ",")),
+    prop = as.numeric(str_extract(n_prop, "(?<=\\()[0-9.]+"))/100,
+    lower = as.numeric(str_extract(ci_range, "^[0-9.]+")),
+    upper = as.numeric(str_extract(ci_range, "(?<=, )[0-9.]+"))
+  ) |>
+  select(bmi_category = category_label, n, prop, lower, upper, nationality) |> 
+  mutate(bmi_category = factor(bmi_category, levels = c("Normal", "Overweight", "Obesity"))) |> 
+  mutate(bmi_category = case_when(bmi_category == "Normal" ~ "Overweight (incl. obesity)",
+                                  TRUE ~ bmi_category),
+         n = case_when(bmi_category == "Overweight (incl. obesity)" ~ sum(n) - n,
+                       TRUE ~ n),
+         prop = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-prop,
+                       TRUE ~ prop),
+         lower_ci = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-upper,
+                       TRUE ~ lower),
+         upper_ci = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-lower,
+                       TRUE ~ upper)) |> 
+  mutate(prop_label = round(prop*100)) |> 
+  select(nationality, bmi_category, n, prop, lower_ci, upper_ci, prop_label) |> 
+  mutate(nationality = factor(nationality,
+                              levels = c("swiss", "north", "west", "south", "east", "other"))) |> 
+  group_by(nationality) |> 
+  mutate(prop_obesity = case_when(bmi_category == "Obesity" ~ prop,
+                                  TRUE ~ NA)) |> 
+  fill(prop_obesity, .direction = "updown") |> 
+  ungroup()
+
+
+bar_overweight_obesity_nationality <- table_overweight_obesity_nationality |> 
+  ggplot(aes(x = nationality, y = prop)) +
+  geom_bar(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(fill = "Overweight (incl. Obesity)"),
+    stat = "identity",
+    orientation = "x",
+    width = 0.6
+  )+
+  geom_errorbar(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(ymin = lower_ci, ymax = upper_ci),
+    stat = "identity",
+    orientation = "x",
+    width = 0.2
+  ) + 
+  geom_bar(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(fill = "Obesity"),
+    stat = "identity",
+    orientation = "x",
+    width = 0.4
+  ) + 
+  geom_errorbar(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(ymin = lower_ci, ymax = upper_ci),
+    stat = "identity",
+    orientation = "x",
+    width = 0.2
+  ) + 
+  scale_fill_manual(
+    values = c(
+      "Overweight (incl. Obesity)" = unibeApricot(),
+      "Obesity" = unibeRed())
+    )+
+  geom_text(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(label = prop_label, y = (prop-prop_obesity)/2+prop_obesity),
+    color = "black",
+    size = ggtext_size(10),
+  ) +
+  geom_text(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(label = prop_label, y = prop/2),
+    color = "black", 
+    size = ggtext_size(10)
+  ) +
+  scale_x_discrete(name = "Nationality",
+                   breaks = c("swiss", "north", "west", "south", "east", "other"), labels = c("CH", "N EU", "W EU", "S EU", "E EU", "Other"))+
+  scale_y_continuous(limits = c(0,0.315), expand = c(0,0), breaks = c(0,.05,0.10, 0.15, 0.20, 0.25, 0.30), labels = scales::label_percent())+
+  theme_minimal()+
+  theme(axis.text.y = element_text(colour = "black", size = 8),
+        axis.text.x = element_text(colour = "black", size = 8),
+        axis.title.x = element_text(colour = "black", size = 11, face = "bold"),
+        axis.title.y = element_blank(),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "bottom",
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10, colour = "black"),
+        plot.margin = margin(t = 0.5, b = 0.5, r = 0.5, l = 0.5, unit = "cm"))
+
+
+bar_overweight_obesity_nationality
+
+
+```
+
+
+
+
+
+
+
+#### SSEP
+
+```{r}
+
+table_overweight_obesity_ssep <- svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight, strata = ~swiss_sep_3_quintile) |> 
+  as_survey() |> 
+  select(bmi_cat_iotf_without_thin_less, swiss_sep_3_quintile) |>
+  tbl_svysummary(by = "swiss_sep_3_quintile",
+                 type = list(all_continuous() ~ "continuous2"),
+              statistic = list(all_continuous2() ~ c("{mean} ({sd})")),
+              missing = "ifany",
+              missing_stat = "{N_miss} ({p_miss}%)",
+              percent = "column",
+              digits = list(all_categorical() ~ 5,
+                            all_continuous() ~ 2)) |> 
+  add_ci(style_fun = list(all_categorical() ~ label_style_sigfig(digits = 5)))
+
+table_overweight_obesity_ssep
+
+table_overweight_obesity_ssep <- table_overweight_obesity_ssep |>
+  as_tibble() |>
+  rename(
+    category_label= 1,
+    n_prop_ssep1 = 2,
+    ci_range_ssep1 = 3,
+    n_prop_ssep2 = 4,
+    ci_range_ssep2 = 5,
+    n_prop_ssep3 = 6,
+    ci_range_ssep3 = 7,
+    n_prop_ssep4 = 8,
+    ci_range_ssep4 = 9,
+    n_prop_ssep5 = 10,
+    ci_range_ssep5 = 11,
+  ) |>
+  filter(category_label != "bmi_cat_iotf_without_thin_less") |>
+  pivot_longer(
+    cols = -category_label, 
+    names_to = c(".value", "nationality"), 
+    names_pattern = "(.*)_(ssep1|ssep2|ssep3|ssep4|ssep5)"
+  ) |> 
+  mutate(
+    n = as.numeric(str_remove_all(str_extract(n_prop, "^[0-9,]+"), ",")),
+    prop = as.numeric(str_extract(n_prop, "(?<=\\()[0-9.]+"))/100,
+    lower = as.numeric(str_extract(ci_range, "^[0-9.]+")),
+    upper = as.numeric(str_extract(ci_range, "(?<=, )[0-9.]+"))
+  ) |>
+  select(bmi_category = category_label, n, prop, lower, upper, nationality) |> 
+  mutate(bmi_category = factor(bmi_category, levels = c("Normal", "Overweight", "Obesity"))) |> 
+  mutate(bmi_category = case_when(bmi_category == "Normal" ~ "Overweight (incl. obesity)",
+                                  TRUE ~ bmi_category),
+         n = case_when(bmi_category == "Overweight (incl. obesity)" ~ sum(n) - n,
+                       TRUE ~ n),
+         prop = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-prop,
+                       TRUE ~ prop),
+         lower_ci = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-upper,
+                       TRUE ~ lower),
+         upper_ci = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-lower,
+                       TRUE ~ upper)) |> 
+  mutate(prop_label = round(prop*100)) |> 
+  select(nationality, bmi_category, n, prop, lower_ci, upper_ci, prop_label) |> 
+  mutate(nationality = factor(nationality,
+                              levels = c("ssep1", "ssep2", "ssep3", "ssep4", "ssep5"))) |> 
+  group_by(nationality) |> 
+  mutate(prop_obesity = case_when(bmi_category == "Obesity" ~ prop,
+                                  TRUE ~ NA)) |> 
+  fill(prop_obesity, .direction = "updown") |> 
+  ungroup()
+
+
+bar_overweight_obesity_ssep <- table_overweight_obesity_ssep |> 
+  ggplot(aes(x = nationality, y = prop)) +
+  geom_bar(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(fill = "Overweight (incl. Obesity)"),
+    stat = "identity",
+    orientation = "x",
+    width = 0.6
+  )+
+  geom_errorbar(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(ymin = lower_ci, ymax = upper_ci),
+    stat = "identity",
+    orientation = "x",
+    width = 0.2
+  ) + 
+  geom_bar(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(fill = "Obesity"),
+    stat = "identity",
+    orientation = "x",
+    width = 0.4
+  ) + 
+  geom_errorbar(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(ymin = lower_ci, ymax = upper_ci),
+    stat = "identity",
+    orientation = "x",
+    width = 0.2
+  ) + 
+  scale_fill_manual(
+    values = c(
+      "Overweight (incl. Obesity)" = unibeApricot(),
+      "Obesity" = unibeRed())
+    )+
+  geom_text(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(label = prop_label, y = (prop-prop_obesity)/2+prop_obesity),
+    color = "black",
+    size = ggtext_size(10),
+  ) +
+  geom_text(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(label = prop_label, y = prop/2),
+    color = "black", 
+    size = ggtext_size(10)
+  ) +
+  scale_x_discrete(name = "Swiss-SEP (Quintiles)",
+                   breaks = c("ssep1", "ssep2", "ssep3", "ssep4", "ssep5"), labels = c("1 (low SES)", "2", "3", "4", "5 (high SES)"))+
+  scale_y_continuous(limits = c(0,0.31), expand = c(0,0), breaks = c(0,.05,0.10, 0.15, 0.20, 0.25, 0.30), labels = scales::label_percent())+
+  theme_minimal()+
+  theme(axis.text.y = element_text(colour = "black", size = 8),
+        axis.text.x = element_text(colour = "black", size = 8),
+        axis.title.x = element_text(colour = "black", size = 11, face = "bold"),
+        axis.title.y = element_blank(),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "bottom",
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10, colour = "black"),
+        plot.margin = margin(t = 0.5, b = 0.5, r = 0.5, l = 0.5, unit = "cm"))
+
+
+bar_overweight_obesity_ssep
+
+
+```
+
+
+
+
+```{r}
+
+get_legend2 <- function(a.gplot){
+  if (!gtable::is.gtable(a.gplot))
+    a.gplot <- ggplotGrob(a.gplot)
+  leg <- which(sapply(a.gplot$grobs, function(x) x$name) == "guide-box")
+  a.gplot$grobs[[leg]]
+}
+
+legend_figure_1 <- get_legend2(bar_overweight_obesity_total+theme(legend.position = "right"))
+
+plot_figure_1 <- plot_grid(bar_overweight_obesity_total + theme(legend.position = "none"), legend_figure_1,
+                           bar_overweight_obesity_sex + theme(legend.position = "none"), bar_overweight_obesity_age + theme(legend.position = "none"),
+                           bar_overweight_obesity_nationality + theme(legend.position = "none"), bar_overweight_obesity_ssep + theme(legend.position = "none"), 
+                           ncol = 2,
+                           axis = "lrtb",
+                           rel_heights = c(1,1,1,1,1,1),
+                           rel_widths = c(1,1,1,1,1,1),
+                           align = "hv")
+
+plot_figure_1
+
+ggsave(filename=file.path(here("output","figures","plot_figure_1.svg")),plot_figure_1,device=svg,units="cm", height=26, width=16, bg = "white")
+
+```
+
+### eFigure: by age year
+
+Girls
+
+```{r}
+
+table_overweight_obesity_age_cat_girls <- svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight_age_cat, strata = ~age_cat, nest = TRUE) |> 
+  as_survey() |> 
+  filter(sex == "f") |> 
+  select(bmi_cat_iotf_without_thin_less, age_cat) |>
+  tbl_svysummary(by = "age_cat",
+                 type = list(all_continuous() ~ "continuous2"),
+              statistic = list(all_continuous2() ~ c("{mean} ({sd})")),
+              missing = "ifany",
+              missing_stat = "{N_miss} ({p_miss}%)",
+              percent = "column",
+              digits = list(all_categorical() ~ 5,
+                            all_continuous() ~ 2)) |> 
+  add_ci(style_fun = list(all_categorical() ~ label_style_sigfig(digits = 5)))
+
+table_overweight_obesity_age_cat_girls
+
+table_overweight_obesity_age_cat_girls <- table_overweight_obesity_age_cat_girls |>
+  as_tibble() |>
+  rename(
+    category_label = 1,
+    n_prop_2 = 2,
+    ci_range_2 = 3,
+    n_prop_3 = 4,
+    ci_range_3 = 5,
+    n_prop_4 = 6,
+    ci_range_4 = 7,
+    n_prop_5 = 8,
+    ci_range_5 = 9,
+    n_prop_6 = 10,
+    ci_range_6 = 11,
+    n_prop_7 = 12,
+    ci_range_7 = 13,
+    n_prop_8 = 14,
+    ci_range_8 = 15,
+    n_prop_9 = 16,
+    ci_range_9 = 17,
+    n_prop_10 = 18,
+    ci_range_10 = 19,
+    n_prop_11 = 20,
+    ci_range_11 = 21,
+    n_prop_12 = 22,
+    ci_range_12 = 23,
+    n_prop_13 = 24,
+    ci_range_13 = 25,
+    n_prop_14 = 26,
+    ci_range_14 = 27,
+    n_prop_15 = 28,
+    ci_range_15 = 29,
+    n_prop_16 = 30,
+    ci_range_16 = 31,
+    n_prop_17 = 32,
+    ci_range_17 = 33
+  ) |>
+  filter(category_label != "bmi_cat_iotf_without_thin_less") |>
+  pivot_longer(
+    cols = -category_label, 
+    names_to = c(".value", "age"),
+  names_pattern = "(.*)_(\\d+)"
+  ) |> 
+  mutate(
+    n = as.numeric(str_remove_all(str_extract(n_prop, "^[0-9,]+"), ",")),
+    prop = as.numeric(str_extract(n_prop, "(?<=\\()[0-9.]+"))/100,
+    lower = as.numeric(str_extract(ci_range, "^[0-9.]+")),
+    upper = as.numeric(str_extract(ci_range, "(?<=, )[0-9.]+"))
+  ) |>
+  select(bmi_category = category_label, n, prop, lower, upper, age) |> 
+  mutate(bmi_category = factor(bmi_category, levels = c("Normal", "Overweight", "Obesity"))) |> 
+  mutate(bmi_category = case_when(bmi_category == "Normal" ~ "Overweight (incl. obesity)",
+                                  TRUE ~ bmi_category),
+         n = case_when(bmi_category == "Overweight (incl. obesity)" ~ sum(n) - n,
+                       TRUE ~ n),
+         prop = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-prop,
+                       TRUE ~ prop),
+         lower_ci = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-upper,
+                       TRUE ~ lower),
+         upper_ci = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-lower,
+                       TRUE ~ upper)) |> 
+  mutate(prop_label = round(prop*100)) |> 
+  select(age, bmi_category, n, prop, lower_ci, upper_ci, prop_label) |> 
+  mutate(age = factor(age,
+                      levels = c("2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17"))) |> 
+  group_by(age) |> 
+  mutate(prop_obesity = case_when(bmi_category == "Obesity" ~ prop,
+                                  TRUE ~ NA)) |> 
+  fill(prop_obesity, .direction = "updown") |> 
+  ungroup()
+
+
+bar_overweight_obesity_age_cat_girls <- table_overweight_obesity_age_cat_girls |> 
+  ggplot(aes(x = age, y = prop)) +
+  geom_bar(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(fill = "Overweight (incl. Obesity)"),
+    stat = "identity",
+    orientation = "x",
+    width = 0.6
+  )+
+  geom_errorbar(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(ymin = lower_ci, ymax = upper_ci),
+    stat = "identity",
+    orientation = "x",
+    width = 0.2
+  ) + 
+  geom_bar(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(fill = "Obesity"),
+    stat = "identity",
+    orientation = "x",
+    width = 0.4
+  ) + 
+  geom_errorbar(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(ymin = lower_ci, ymax = upper_ci),
+    stat = "identity",
+    orientation = "x",
+    width = 0.2
+  ) + 
+  scale_fill_manual(
+    values = c(
+      "Overweight (incl. Obesity)" = unibeApricot(),
+      "Obesity" = unibeRed())
+    )+
+  geom_text(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(label = prop_label, y = (prop-prop_obesity)/2+prop_obesity),
+    color = "black",
+    size = ggtext_size(10),
+  ) +
+  geom_text(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(label = prop_label, y = prop_obesity/2),
+    color = "black", 
+    size = ggtext_size(10)
+  ) +
+  scale_x_discrete(name = "Age (years)")+
+  scale_y_continuous(limits = c(0,0.31), expand = c(0,0), breaks = c(0,.05,0.10, 0.15,0.20, 0.25, 0.30), labels = scales::label_percent())+
+  theme_minimal()+
+  theme(axis.text.y = element_text(colour = "black", size = 8),
+        axis.text.x = element_text(colour = "black", size = 8),
+        axis.title.x = element_text(colour = "black", size = 11, face = "bold"),
+        axis.title.y = element_blank(),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "bottom",
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10, colour = "black"),
+        plot.margin = margin(t = 1, b = 0.5, r = 0.5, l = 0.5, unit = "cm"))
+
+
+bar_overweight_obesity_age_cat_girls
+
+
+```
+
+Boys
+
+```{r}
+
+table_overweight_obesity_age_cat_boys <- svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight_age_cat, strata = ~age_cat, nest = TRUE) |> 
+  as_survey() |> 
+  filter(sex == "m") |> 
+  select(bmi_cat_iotf_without_thin_less, age_cat) |>
+  tbl_svysummary(by = "age_cat",
+                 type = list(all_continuous() ~ "continuous2"),
+              statistic = list(all_continuous2() ~ c("{mean} ({sd})")),
+              missing = "ifany",
+              missing_stat = "{N_miss} ({p_miss}%)",
+              percent = "column",
+              digits = list(all_categorical() ~ 5,
+                            all_continuous() ~ 2)) |> 
+  add_ci(style_fun = list(all_categorical() ~ label_style_sigfig(digits = 5)))
+
+table_overweight_obesity_age_cat_boys
+
+table_overweight_obesity_age_cat_boys <- table_overweight_obesity_age_cat_boys |>
+  as_tibble() |>
+  rename(
+    category_label = 1,
+    n_prop_2 = 2,
+    ci_range_2 = 3,
+    n_prop_3 = 4,
+    ci_range_3 = 5,
+    n_prop_4 = 6,
+    ci_range_4 = 7,
+    n_prop_5 = 8,
+    ci_range_5 = 9,
+    n_prop_6 = 10,
+    ci_range_6 = 11,
+    n_prop_7 = 12,
+    ci_range_7 = 13,
+    n_prop_8 = 14,
+    ci_range_8 = 15,
+    n_prop_9 = 16,
+    ci_range_9 = 17,
+    n_prop_10 = 18,
+    ci_range_10 = 19,
+    n_prop_11 = 20,
+    ci_range_11 = 21,
+    n_prop_12 = 22,
+    ci_range_12 = 23,
+    n_prop_13 = 24,
+    ci_range_13 = 25,
+    n_prop_14 = 26,
+    ci_range_14 = 27,
+    n_prop_15 = 28,
+    ci_range_15 = 29,
+    n_prop_16 = 30,
+    ci_range_16 = 31,
+    n_prop_17 = 32,
+    ci_range_17 = 33
+  ) |>
+  filter(category_label != "bmi_cat_iotf_without_thin_less") |>
+  pivot_longer(
+    cols = -category_label, 
+    names_to = c(".value", "age"),
+  names_pattern = "(.*)_(\\d+)"
+  ) |> 
+  mutate(
+    n = as.numeric(str_remove_all(str_extract(n_prop, "^[0-9,]+"), ",")),
+    prop = as.numeric(str_extract(n_prop, "(?<=\\()[0-9.]+"))/100,
+    lower = as.numeric(str_extract(ci_range, "^[0-9.]+")),
+    upper = as.numeric(str_extract(ci_range, "(?<=, )[0-9.]+"))
+  ) |>
+  select(bmi_category = category_label, n, prop, lower, upper, age) |> 
+  mutate(bmi_category = factor(bmi_category, levels = c("Normal", "Overweight", "Obesity"))) |> 
+  mutate(bmi_category = case_when(bmi_category == "Normal" ~ "Overweight (incl. obesity)",
+                                  TRUE ~ bmi_category),
+         n = case_when(bmi_category == "Overweight (incl. obesity)" ~ sum(n) - n,
+                       TRUE ~ n),
+         prop = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-prop,
+                       TRUE ~ prop),
+         lower_ci = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-upper,
+                       TRUE ~ lower),
+         upper_ci = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-lower,
+                       TRUE ~ upper)) |> 
+  mutate(prop_label = round(prop*100)) |> 
+  select(age, bmi_category, n, prop, lower_ci, upper_ci, prop_label) |> 
+  mutate(age = factor(age,
+                      levels = c("2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17"))) |> 
+  group_by(age) |> 
+  mutate(prop_obesity = case_when(bmi_category == "Obesity" ~ prop,
+                                  TRUE ~ NA)) |> 
+  fill(prop_obesity, .direction = "updown") |> 
+  ungroup()
+
+
+bar_overweight_obesity_age_cat_boys <- table_overweight_obesity_age_cat_boys |> 
+  ggplot(aes(x = age, y = prop)) +
+  geom_bar(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(fill = "Overweight (incl. Obesity)"),
+    stat = "identity",
+    orientation = "x",
+    width = 0.6
+  )+
+  geom_errorbar(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(ymin = lower_ci, ymax = upper_ci),
+    stat = "identity",
+    orientation = "x",
+    width = 0.2
+  ) + 
+  geom_bar(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(fill = "Obesity"),
+    stat = "identity",
+    orientation = "x",
+    width = 0.4
+  ) + 
+  geom_errorbar(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(ymin = lower_ci, ymax = upper_ci),
+    stat = "identity",
+    orientation = "x",
+    width = 0.2
+  ) + 
+  scale_fill_manual(
+    values = c(
+      "Overweight (incl. Obesity)" = unibeApricot(),
+      "Obesity" = unibeRed())
+    )+
+  geom_text(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(label = prop_label, y = (prop-prop_obesity)/2+prop_obesity),
+    color = "black",
+    size = ggtext_size(10),
+  ) +
+  geom_text(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(label = prop_label, y = prop_obesity/2),
+    color = "black", 
+    size = ggtext_size(10)
+  ) +
+  scale_x_discrete(name = "Age (years)")+
+  scale_y_continuous(limits = c(0,0.31), expand = c(0,0), breaks = c(0,.05,0.10, 0.15,0.20, 0.25, 0.30), labels = scales::label_percent())+
+  theme_minimal()+
+  theme(axis.text.y = element_text(colour = "black", size = 8),
+        axis.text.x = element_text(colour = "black", size = 8),
+        axis.title.x = element_text(colour = "black", size = 11, face = "bold"),
+        axis.title.y = element_blank(),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "bottom",
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10, colour = "black"),
+        plot.margin = margin(t = 1, b = 0.5, r = 0.5, l = 0.5, unit = "cm"))
+
+
+bar_overweight_obesity_age_cat_boys
+
+
+```
+
+
+```{r}
+
+legend_figure_2 <- get_legend2(bar_overweight_obesity_age_cat_boys+theme(legend.position = "bottom"))
+
+plot_figure_age_cat <- plot_grid(bar_overweight_obesity_age_cat_girls + theme(legend.position = "none"),
+                           bar_overweight_obesity_age_cat_boys + theme(legend.position = "none"),
+                           legend_figure_2,
+                           ncol = 1,
+                           axis = "lrtb",
+                           rel_heights = c(1,1, 0.1),
+                           rel_widths = c(1,1, 0.1),
+                           labels = c("Girls", "Boys", ""),
+                           align = "hv")
+
+plot_figure_age_cat
+
+ggsave(filename=file.path(here("output","figures","pplot_figure_age_cat.svg")),plot_figure_age_cat,device=svg,units="cm", height=26, width=16, bg = "white")
+
+
+```
+
+
+
+
+
+
+### Figure 2: by calendar year and hospital
+
+Calendar year
+
+```{r}
+
+data_bmi <- data_bmi |> 
+  mutate(calendar_year = factor(case_when(year(weight_datetime) == 2016 ~ 2017,
+                                          year(weight_datetime) == 2024 ~ 2023,
+                                          TRUE ~ year(weight_datetime))))
+
+table_overweight_obesity_calendar_year <- svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight, strata = ~calendar_year, nest = TRUE) |> 
+  as_survey() |> 
+  select(bmi_cat_iotf_without_thin_less, calendar_year) |>
+  tbl_svysummary(by = "calendar_year",
+                 type = list(all_continuous() ~ "continuous2"),
+              statistic = list(all_continuous2() ~ c("{mean} ({sd})")),
+              missing = "ifany",
+              missing_stat = "{N_miss} ({p_miss}%)",
+              percent = "column",
+              digits = list(all_categorical() ~ 5,
+                            all_continuous() ~ 2)) |> 
+  add_ci(style_fun = list(all_categorical() ~ label_style_sigfig(digits = 5)))
+
+table_overweight_obesity_calendar_year
+
+table_overweight_obesity_calendar_year <- table_overweight_obesity_calendar_year |>
+  as_tibble() |>
+  rename(
+    category_label = 1,
+    n_prop_2017 = 2,
+    ci_range_2017 = 3,
+    n_prop_2018 = 4,
+    ci_range_2018 = 5,
+    n_prop_2019 = 6,
+    ci_range_2019 = 7,
+    n_prop_2020 = 8,
+    ci_range_2020 = 9,
+    n_prop_2021 = 10,
+    ci_range_2021 = 11,
+    n_prop_2022 = 12,
+    ci_range_2022 = 13,
+    n_prop_2023 = 14,
+    ci_range_2023 = 15,
+  ) |>
+  filter(category_label != "bmi_cat_iotf_without_thin_less") |>
+  pivot_longer(
+    cols = -category_label, 
+    names_to = c(".value", "calendar_year"),
+  names_pattern = "(.*)_(\\d+)"
+  ) |> 
+  mutate(
+    n = as.numeric(str_remove_all(str_extract(n_prop, "^[0-9,]+"), ",")),
+    prop = as.numeric(str_extract(n_prop, "(?<=\\()[0-9.]+"))/100,
+    lower = as.numeric(str_extract(ci_range, "^[0-9.]+")),
+    upper = as.numeric(str_extract(ci_range, "(?<=, )[0-9.]+"))
+  ) |>
+  select(bmi_category = category_label, n, prop, lower, upper, calendar_year) |> 
+  mutate(bmi_category = factor(bmi_category, levels = c("Normal", "Overweight", "Obesity"))) |> 
+  mutate(bmi_category = case_when(bmi_category == "Normal" ~ "Overweight (incl. obesity)",
+                                  TRUE ~ bmi_category),
+         n = case_when(bmi_category == "Overweight (incl. obesity)" ~ sum(n) - n,
+                       TRUE ~ n),
+         prop = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-prop,
+                       TRUE ~ prop),
+         lower_ci = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-upper,
+                       TRUE ~ lower),
+         upper_ci = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-lower,
+                       TRUE ~ upper)) |> 
+  mutate(prop_label = round(prop*100)) |> 
+  select(calendar_year, bmi_category, n, prop, lower_ci, upper_ci, prop_label) |> 
+  mutate(calendar_year = factor(calendar_year,
+                      levels = c("2017", "2018", "2019", "2020", "2021", "2022", "2023"))) |> 
+  group_by(calendar_year) |> 
+  mutate(prop_obesity = case_when(bmi_category == "Obesity" ~ prop,
+                                  TRUE ~ NA)) |> 
+  fill(prop_obesity, .direction = "updown") |> 
+  ungroup()
+
+
+bar_overweight_obesity_calendar_year <- table_overweight_obesity_calendar_year |> 
+  ggplot(aes(x = calendar_year, y = prop)) +
+  geom_bar(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(fill = "Overweight (incl. Obesity)"),
+    stat = "identity",
+    orientation = "x",
+    width = 0.6
+  )+
+  geom_errorbar(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(ymin = lower_ci, ymax = upper_ci),
+    stat = "identity",
+    orientation = "x",
+    width = 0.2
+  ) + 
+  geom_bar(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(fill = "Obesity"),
+    stat = "identity",
+    orientation = "x",
+    width = 0.4
+  ) + 
+  geom_errorbar(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(ymin = lower_ci, ymax = upper_ci),
+    stat = "identity",
+    orientation = "x",
+    width = 0.2
+  ) + 
+  scale_fill_manual(
+    values = c(
+      "Overweight (incl. Obesity)" = unibeApricot(),
+      "Obesity" = unibeRed())
+    )+
+  geom_text(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(label = prop_label, y = (prop-prop_obesity)/2+prop_obesity),
+    color = "black",
+    size = ggtext_size(10),
+  ) +
+  geom_text(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(label = prop_label, y = prop_obesity/2),
+    color = "black", 
+    size = ggtext_size(10)
+  ) +
+  scale_x_discrete(name = "Calendar year")+
+  scale_y_continuous(limits = c(0,0.31), expand = c(0,0), breaks = c(0,.05,0.10, 0.15,0.20, 0.25, 0.30), labels = scales::label_percent())+
+  theme_minimal()+
+  theme(axis.text.y = element_text(colour = "black", size = 8),
+        axis.text.x = element_text(colour = "black", size = 8),
+        axis.title.x = element_text(colour = "black", size = 11, face = "bold"),
+        axis.title.y = element_blank(),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "bottom",
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10, colour = "black"),
+        plot.margin = margin(t = 1, b = 0.5, r = 0.5, l = 0.5, unit = "cm"))
+
+
+bar_overweight_obesity_calendar_year
+
+
+```
+
+Hospital
+
+```{r}
+
+table_overweight_obesity_hospital <- svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight, strata = ~hospital, nest = TRUE) |> 
+  as_survey() |> 
+  select(bmi_cat_iotf_without_thin_less, hospital) |>
+  tbl_svysummary(by = "hospital",
+                 type = list(all_continuous() ~ "continuous2"),
+              statistic = list(all_continuous2() ~ c("{mean} ({sd})")),
+              missing = "ifany",
+              missing_stat = "{N_miss} ({p_miss}%)",
+              percent = "column",
+              digits = list(all_categorical() ~ 5,
+                            all_continuous() ~ 2)) |> 
+  add_ci(style_fun = list(all_categorical() ~ label_style_sigfig(digits = 5)))
+
+table_overweight_obesity_hospital
+
+table_overweight_obesity_hospital <- table_overweight_obesity_hospital |>
+  as_tibble() |>
+  rename(
+    category_label = 1,
+    n_prop_Basel = 2,
+    ci_range_Basel = 3,
+    n_prop_Bern = 4,
+    ci_range_Bern = 5,
+    n_prop_Geneva = 6,
+    ci_range_Geneva = 7,
+    n_prop_Lausanne = 8,
+    ci_range_Lausanne = 9,
+    n_prop_Luzern = 10,
+    ci_range_Luzern = 11,
+    n_prop_Zurich = 12,
+    ci_range_Zurich = 13,
+  ) |>
+  filter(category_label != "bmi_cat_iotf_without_thin_less") |>
+  pivot_longer(
+    cols = -category_label, 
+    names_to = c(".value", "hospital"),
+  names_pattern = "(.*)_(Basel|Bern|Geneva|Lausanne|Luzern|Zurich)"
+  ) |> 
+  mutate(
+    n = as.numeric(str_remove_all(str_extract(n_prop, "^[0-9,]+"), ",")),
+    prop = as.numeric(str_extract(n_prop, "(?<=\\()[0-9.]+"))/100,
+    lower = as.numeric(str_extract(ci_range, "^[0-9.]+")),
+    upper = as.numeric(str_extract(ci_range, "(?<=, )[0-9.]+"))
+  ) |>
+  select(bmi_category = category_label, n, prop, lower, upper, hospital) |> 
+  mutate(bmi_category = factor(bmi_category, levels = c("Normal", "Overweight", "Obesity"))) |> 
+  mutate(bmi_category = case_when(bmi_category == "Normal" ~ "Overweight (incl. obesity)",
+                                  TRUE ~ bmi_category),
+         n = case_when(bmi_category == "Overweight (incl. obesity)" ~ sum(n) - n,
+                       TRUE ~ n),
+         prop = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-prop,
+                       TRUE ~ prop),
+         lower_ci = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-upper,
+                       TRUE ~ lower),
+         upper_ci = case_when(bmi_category == "Overweight (incl. obesity)" ~ 1-lower,
+                       TRUE ~ upper)) |> 
+  mutate(prop_label = round(prop*100)) |> 
+  select(hospital, bmi_category, n, prop, lower_ci, upper_ci, prop_label) |> 
+  mutate(hospital = factor(hospital,
+                      levels = c("Basel", "Bern", "Geneva", "Lausanne", "Luzern", "Zurich"))) |> 
+  group_by(hospital) |> 
+  mutate(prop_obesity = case_when(bmi_category == "Obesity" ~ prop,
+                                  TRUE ~ NA)) |> 
+  fill(prop_obesity, .direction = "updown") |> 
+  ungroup()
+
+
+bar_overweight_obesity_hospital <- table_overweight_obesity_hospital |> 
+  ggplot(aes(x = hospital, y = prop)) +
+  geom_bar(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(fill = "Overweight (incl. Obesity)"),
+    stat = "identity",
+    orientation = "x",
+    width = 0.6
+  )+
+  geom_errorbar(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(ymin = lower_ci, ymax = upper_ci),
+    stat = "identity",
+    orientation = "x",
+    width = 0.2
+  ) + 
+  geom_bar(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(fill = "Obesity"),
+    stat = "identity",
+    orientation = "x",
+    width = 0.4
+  ) + 
+  geom_errorbar(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(ymin = lower_ci, ymax = upper_ci),
+    stat = "identity",
+    orientation = "x",
+    width = 0.2
+  ) + 
+  scale_fill_manual(
+    values = c(
+      "Overweight (incl. Obesity)" = unibeApricot(),
+      "Obesity" = unibeRed())
+    )+
+  geom_text(
+    data = . %>% filter(bmi_category == "Overweight (incl. obesity)"),
+    aes(label = prop_label, y = (prop-prop_obesity)/2+prop_obesity),
+    color = "black",
+    size = ggtext_size(10),
+  ) +
+  geom_text(
+    data = . %>% filter(bmi_category == "Obesity"),
+    aes(label = prop_label, y = prop_obesity/2),
+    color = "black", 
+    size = ggtext_size(10)
+  ) +
+  scale_x_discrete(name = "Hospital")+
+  scale_y_continuous(limits = c(0,0.31), expand = c(0,0), breaks = c(0,.05,0.10, 0.15,0.20, 0.25, 0.30), labels = scales::label_percent())+
+  theme_minimal()+
+  theme(axis.text.y = element_text(colour = "black", size = 8),
+        axis.text.x = element_text(colour = "black", size = 8),
+        axis.title.x = element_text(colour = "black", size = 11, face = "bold"),
+        axis.title.y = element_blank(),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "bottom",
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10, colour = "black"),
+        plot.margin = margin(t = 1, b = 0.5, r = 0.5, l = 0.5, unit = "cm"))
+
+
+bar_overweight_obesity_hospital
+
+
+```
+
+
+```{r}
+
+legend_figure_2 <- get_legend2(bar_overweight_obesity_hospital+theme(legend.position = "bottom"))
+
+plot_figure_2 <- plot_grid(bar_overweight_obesity_hospital + theme(legend.position = "none"),
+                           bar_overweight_obesity_calendar_year + theme(legend.position = "none"),
+                           legend_figure_2,
+                           ncol = 1,
+                           axis = "lrtb",
+                           rel_heights = c(1,1, 0.1),
+                           rel_widths = c(1,1, 0.1),
+                           align = "hv")
+
+plot_figure_2
+
+ggsave(filename=file.path(here("output","figures","plot_figure_2.svg")),plot_figure_2,device=svg,units="cm", height=26, width=16, bg = "white")
+
+
+```
+
+## Aim 2: Risk groups for obesity
+
+
+
+
+#### Univariable regression
+
+age
+
+```{r}
+
+model_age_1 <- svyglm(obesity ~ I(age_years_bmi/5), family = quasibinomial(), design = svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight))
+summary(model_age_1)
+cbind(exp(summary(model_age_1)$coef[,1]), exp(confint(model_age_1)))
+
+
+model_age_2 <- svyglm(obesity ~ age_group_bmi, family = quasibinomial(), design = svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight))
+summary(model_age_2)
+cbind(exp(summary(model_age_2)$coef[,1]), exp(confint(model_age_2)))
+
+AIC(model_age_1, model_age_2)
+
+```
+
+
+sex
+
+```{r}
+
+data_bmi <- data_bmi |> 
+  mutate(sex = factor(sex,
+                      levels = c("m", "f")))
+
+model_sex <- svyglm(obesity ~ sex, family = quasibinomial(), design = svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight))
+summary(model_sex)
+cbind(exp(summary(model_sex)$coef[,1]), exp(confint(model_sex)))
+
+
+
+```
+
+nationality
+
+```{r}
+
+model_nationality <- svyglm(obesity ~ nationality_group_detailed, family = quasibinomial(), design = svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight))
+summary(model_nationality)
+cbind(exp(summary(model_nationality)$coef[,1]), exp(confint(model_nationality)))
+
+
+
+```
+
+
+Swiss-SEP
+
+```{r}
+
+model_ssep_1 <- svyglm(obesity ~ I(swiss_sep_3/10), family = quasibinomial(), design = svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight))
+summary(model_ssep_1)
+cbind(exp(summary(model_ssep_1)$coef[,1]), exp(confint(model_ssep_1)))
+
+
+model_ssep_2 <- svyglm(obesity ~ swiss_sep_3_quintile, family = quasibinomial(), design = svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight))
+summary(model_ssep_2)
+cbind(exp(summary(model_ssep_2)$coef[,1]), exp(confint(model_ssep_2)))
+
+AIC(model_ssep_1, model_ssep_2)
+
+```
+
+
+#### Multivariable
+
+```{r}
+
+model_multi_1 <- svyglm(obesity ~ age_group_bmi + sex + nationality_group_detailed + I(swiss_sep_3/10), family = quasibinomial(), design = svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight))
+summary(model_multi_1)
+cbind(exp(summary(model_multi_1)$coef[,1]), exp(confint(model_multi_1)))
+
+
+```
+
+
+```{r}
+
+model_multi_2 <- svyglm(obesity ~ age_group_bmi + sex + nationality_group_detailed*I(swiss_sep_3/10), family = quasibinomial(), design = svydesign(id = ~participant_id, data = data_bmi, weights = ~stabilized_genpop_analysis_weight))
+summary(model_multi_2)
+cbind(exp(summary(model_multi_2)$coef[,1]), exp(confint(model_multi_2)))
+
+anova(model_multi_2, model_multi_1)
+
+```
+
+
+## Aim 3: Recognition of obesity
+
+Select patients and bmi values
+
+```{r}
+
+data_bmi |> select(diagnosis_obesity) |> 
+  tbl_summary()
+
+data_bmi_diagnosis <- data_bmi |> 
+  filter(diagnosis_obesity != "Unavailable") |> 
+  mutate(diagnosis_obesity = factor(diagnosis_obesity,
+                                    levels = c("Not obesity", "Obesity"),
+                                    labels = c("no", "yes")))
+
+
+data_bmi_diagnosis |> nrow()
+
+data_bmi_diagnosis |> distinct(participant_id) |> nrow()
+
+```
+
+
+
+```{r}
+
+
+data_bmi_diagnosis <- data_bmi_diagnosis |> 
+  mutate(number_participants_diagnosis = n_distinct(participant_id)) |> 
+  group_by(participant_id) |> 
+  mutate(number_bmi_measurements_diagnosis = n()) |> 
+  ungroup()
+
+
+data_bmi_diagnosis <- data_bmi_diagnosis |> 
+  mutate(analysis_weight_diagnosis = 1/number_bmi_measurements_diagnosis,
+         genpop_analysis_weight_diagnosis = genpop_weight/number_bmi_measurements_diagnosis,
+         stabilized_genpop_analysis_weight_diagnosis = genpop_analysis_weight_diagnosis*number_participants_diagnosis/sum(genpop_analysis_weight_diagnosis))
+
+
+sum(data_bmi_diagnosis$stabilized_genpop_analysis_weight_diagnosis)
+
+```
+
+### Table: Agreement and Cohen's Kappa
+
+
+```{r}
+
+svydesign(id = ~participant_id, data = data_bmi_diagnosis, weights = ~stabilized_genpop_analysis_weight_diagnosis, nest = TRUE) |> 
+  as_survey() |> 
+  select(obesity, diagnosis_obesity) |>tbl_svysummary(type = all_dichotomous() ~ "categorical")
+
+svydesign(id = ~participant_id, data = data_bmi_diagnosis, strata = ~obesity, weights = ~stabilized_genpop_analysis_weight_diagnosis, nest = TRUE) |> 
+  as_survey() |> 
+  select(obesity, diagnosis_obesity) |>
+  tbl_svysummary(by = "obesity",
+                 type = list(all_continuous() ~ "continuous2",
+                             all_dichotomous() ~ "categorical"),
+              statistic = list(all_continuous2() ~ c("{mean} ({sd})", "{median} ({p25}, {p75})", "{min}, {max}"),
+                               all_categorical() ~ "{n} ({p})"),
+              missing = "ifany",
+              missing_stat = "{N_miss} ({p_miss}%)",
+              percent = "column",
+              digits = list(all_categorical() ~ 0,
+                            all_continuous() ~ 1))
+
+
+```
+
+
+```{r}
+
+weighted_tab <- svydesign(id = ~participant_id, data = data_bmi_diagnosis, weights = ~stabilized_genpop_analysis_weight_diagnosis) |> 
+  as_survey() |> 
+  svytable(
+  formula = ~diagnosis_obesity + obesity
+)
+
+weighted_tab
+
+print("Cohen's Kappa Obesity defined by BMI vs ICD-10")
+CohenKappa(weighted_tab, conf.level=0.95)
+
+
+```
+
+
+### eTable: Characteristics of patients with or without diagnosis
+
+
+```{r}
+
+data_bmi_diagnosis_obesity <- data_bmi_diagnosis |> 
+  filter(obesity == "yes")
+
+```
+
+
+```{r}
+
+svydesign(id = ~participant_id, data = data_bmi_diagnosis, strata = ~diagnosis_obesity, weights = ~stabilized_genpop_analysis_weight_diagnosis, nest = TRUE) |> 
+  as_survey() |> 
+  filter(obesity == "yes") |> 
+  select(diagnosis_obesity, sex, age_group_bmi, nationality_group_detailed, swiss_sep_3, swiss_sep_3_quintile, hospital) |>
+  tbl_svysummary(by = "diagnosis_obesity",
+                 type = list(all_continuous() ~ "continuous2",
+                             all_dichotomous() ~ "categorical"),
+              statistic = list(all_continuous2() ~ c("{mean} ({sd})", "{median} ({p25}, {p75})", "{min}, {max}"),
+                               all_categorical() ~ "{n} ({p})"),
+              missing = "ifany",
+              missing_stat = "{N_miss} ({p_miss}%)",
+              percent = "row",
+              digits = list(all_categorical() ~ 0,
+                            all_continuous() ~ 1)) |> 
+  add_p(test = list(all_continuous2() ~ "svy.t.test",
+                    all_categorical() ~ "svy.chisq.test")) |> 
+  modify_fmt_fun(
+    p.value = function(x) {
+      ifelse(
+        x < 0.0001, 
+        "<0.0001", 
+        format(round(x, 4), nsmall = 4))  # Show 4 decimal places
+    }
+  )
+
+```
+
+
+
+### Figure: Sensitivity Specificity
+
+```{r}
+
+survey_obj <- data_bmi_diagnosis |> 
+  as_survey_design(id = participant_id, 
+                   weights = stabilized_genpop_analysis_weight_diagnosis, 
+                   nest = TRUE)
+
+overall_metrics <- survey_obj |>
+  group_by(obesity) |>
+  summarize(
+    value = survey_mean(diagnosis_obesity == ifelse(obesity == "yes", "yes", "no"), 
+                        vartype = "ci", 
+                        na.rm = TRUE)
+  ) |>
+  mutate(metric = ifelse(obesity == "yes", "Sensitivity", "Specificity")) |>
+  select(metric, estimate = value, conf_low = value_low, conf_high = value_upp)
+
+print("Overall Performance Metrics:")
+print(overall_metrics)
+
+```
+
+
+```{r}
+
+
+yearly_metrics <- survey_obj |>
+  group_by(calendar_year, obesity) |>
+  summarize(
+    value = survey_mean(diagnosis_obesity == ifelse(obesity == "yes", "yes", "no"), 
+                        vartype = "ci", 
+                        na.rm = TRUE)
+  ) |>
+  mutate(metric = ifelse(obesity == "yes", "Sensitivity", "Specificity")) |>
+  select(calendar_year, metric, estimate = value, conf_low = value_low, conf_high = value_upp) |>
+  arrange(calendar_year, desc(metric))
+
+print("Performance Metrics by Year:")
+print(yearly_metrics)
+
+```
+
+
+
+```{r}
+
+yearly_metrics <- yearly_metrics |> 
+  mutate(label = paste0(sprintf("%.1f", estimate * 100), "%"))
+
+plot_sensitivity <- ggplot(yearly_metrics, aes(x = calendar_year, y = estimate, color = metric, group = metric)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = conf_low, ymax = conf_high), width = 0.15, alpha = 0.7) +
+  geom_text(aes(label = label), 
+            # Positions Sensitivity labels below and Specificity above
+            vjust = ifelse(yearly_metrics$metric == "Sensitivity", -2, 2), 
+            color = "black",
+            show.legend = FALSE,
+            size = 3.5) +
+  scale_y_continuous(labels = scales::label_percent(), 
+                     limits = c(-0.05, 1.1), # Expanded slightly to fit labels
+                     breaks = seq(0, 1, by = 0.2)) +
+  scale_color_manual(name = NULL,
+                     values = c("Sensitivity" = unibeIce(), "Specificity" = unibeMustard())) +
+  labs(
+    x = "Calendar year",
+    y = "Sensitivity and Specificity (%)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.y = element_text(colour = "black", size = 8),
+        axis.text.x = element_text(colour = "black", size = 8),
+        axis.title.x = element_text(colour = "black", size = 11, face = "bold"),
+        axis.title.y = element_text(colour = "black", size = 11, face = "bold"),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "bottom",
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10, colour = "black"),
+        plot.margin = margin(t = 0.5, b = 0.5, r = 0.5, l = 0.5, unit = "cm")
+  )
+
+plot_sensitivity
+
+
+ggsave(filename=file.path(here("output","figures","plot_sensitivity.svg")),plot_sensitivity,device=svg,units="cm", height=13, width=16, bg = "white")
+
+```
+
