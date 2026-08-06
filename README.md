@@ -1,4 +1,4 @@
-# Obesity - SwissPedGrowth.
+# Obesity - SwissPedGrowth
 
 This GitHub repository shares the analysis code used for the manuscript "Prevalence and recognition of obesity in Swiss children’s hospitals: A cross-sectional study of the SwissPedGrowth project".
 
