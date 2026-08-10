@@ -2728,7 +2728,7 @@ bar_overweight_obesity_age_cat_boys_iotf
 
 ```{r}
 
-legend_figure_2_iotf <- get_legend2(bar_overweight_obesity_age_cat_boys+theme(legend.position = "bottom"))
+legend_figure_2_iotf <- get_legend2(bar_overweight_obesity_age_cat_boys_iotf+theme(legend.position = "bottom"))
 
 plot_figure_age_cat_iotf <- plot_grid(bar_overweight_obesity_age_cat_girls_iotf + theme(legend.position = "none"),
                            bar_overweight_obesity_age_cat_boys_iotf + theme(legend.position = "none"),
@@ -3044,7 +3044,7 @@ bar_overweight_obesity_hospital_iotf
 
 ```{r}
 
-legend_figure_2_iotf <- get_legend2(bar_overweight_obesity_hospital+theme(legend.position = "bottom"))
+legend_figure_2_iotf <- get_legend2(bar_overweight_obesity_hospital_iotf+theme(legend.position = "bottom"))
 
 plot_figure_2_iotf <- plot_grid(bar_overweight_obesity_hospital_iotf + theme(legend.position = "none"),
                            bar_overweight_obesity_calendar_year_iotf + theme(legend.position = "none"),
@@ -4164,7 +4164,7 @@ bar_overweight_obesity_age_cat_boys_who
 
 ```{r}
 
-legend_figure_2_who <- get_legend2(bar_overweight_obesity_age_cat_boys+theme(legend.position = "bottom"))
+legend_figure_2_who <- get_legend2(bar_overweight_obesity_age_cat_boys_who+theme(legend.position = "bottom"))
 
 plot_figure_age_cat_who <- plot_grid(bar_overweight_obesity_age_cat_girls_who + theme(legend.position = "none"),
                            bar_overweight_obesity_age_cat_boys_who + theme(legend.position = "none"),
@@ -4480,7 +4480,7 @@ bar_overweight_obesity_hospital_who
 
 ```{r}
 
-legend_figure_2_who <- get_legend2(bar_overweight_obesity_hospital+theme(legend.position = "bottom"))
+legend_figure_2_who <- get_legend2(bar_overweight_obesity_hospital_who+theme(legend.position = "bottom"))
 
 plot_figure_2_who <- plot_grid(bar_overweight_obesity_hospital_who + theme(legend.position = "none"),
                            bar_overweight_obesity_calendar_year_who + theme(legend.position = "none"),
